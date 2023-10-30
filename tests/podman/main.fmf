@@ -1,0 +1,9 @@
+test: ./test.sh
+framework: beakerlib
+tier: 2
+require: [podman]
+
+enabled: true
+adjust:
+  when: distro == centos-7
+  enabled: false

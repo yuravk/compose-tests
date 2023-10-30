@@ -1,0 +1,12 @@
+summary: Essential command line features
+enabled: true
+adjust:
+  - when: distro == centos-7 or distro == centos-stream-8
+    enabled: false
+  - when: distro == centos-stream-9
+    discover:
+      how: fmf
+      url: https://gitlab.com/carlosrodfern/podman.git
+      ref: c9s
+execute:
+    how: tmt

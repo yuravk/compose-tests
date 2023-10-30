@@ -1,0 +1,7 @@
+summary: New generation tests fully leveraging tmt
+
+discover:
+    how: fmf
+    exclude: /legacy
+execute:
+    how: tmt

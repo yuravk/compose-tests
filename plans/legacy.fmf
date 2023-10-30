@@ -1,0 +1,8 @@
+summary: Imported t_functional tests
+
+discover:
+    how: fmf
+    test:
+        - /legacy
+execute:
+    how: tmt

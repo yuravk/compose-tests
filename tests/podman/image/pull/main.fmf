@@ -1,0 +1,2 @@
+summary: tests podman pull
+description: It tests podman pull with different options
