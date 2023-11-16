@@ -1,11 +1,15 @@
+stages:
+  - verify
+
 workflow:
   rules:
     # allow pipeline triggered by MR
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # allow pipeline for commits in protected branches
     - if: $CI_COMMIT_REF_PROTECTED == "true"
-build:
+
+verify:
   image: registry.gitlab.com/centos/integration/containers/tmt:latest
-  stage: build
+  stage: verify
   script:
     - tmt lint
