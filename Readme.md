@@ -7,6 +7,19 @@ On Centos Stream 9 as `root`:
 tmt -vvv -c distro=centos-stream-9 run --all provision --how=local
 ```
 
+In order to run it with the `SKIP_QA_HARNESS=0` off (default as `1`):
+
+```sh
+tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=0 --all provision --how=local
+```
+
+or
+
+```sh
+tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=$(host repo.centos.qa > /dev/null; echo $?) --all provision --how=local
+```
+
+
 # Directory Structure
 
 ## `plans`
