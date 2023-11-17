@@ -1,0 +1,3 @@
+summary: imported p_logwatch test set
+description: p_logwatch imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported z_cr_test test set
+description: z_cr_test imported as-is
+test: ./test.sh

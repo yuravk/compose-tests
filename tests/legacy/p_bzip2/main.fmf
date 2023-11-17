@@ -1,0 +1,3 @@
+summary: imported p_bzip2 test set
+description: p_bzip2 imported as-is
+test: ./test.sh

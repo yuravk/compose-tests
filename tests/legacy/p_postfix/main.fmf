@@ -1,0 +1,3 @@
+summary: imported p_postfix test set
+description: p_postfix imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported p_grub2 test set
+description: p_grub2 imported as-is
+test: ./test.sh

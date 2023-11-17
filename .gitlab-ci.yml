@@ -12,4 +12,5 @@ verify:
   image: registry.gitlab.com/centos/integration/containers/tmt:latest
   stage: verify
   script:
-    - tmt lint
+    - tmt lint --failed-only
+    - find . -name '*.sh' -not -path "*/legacy/*" | xargs -n 1 shellcheck --severity=error --shell=bash

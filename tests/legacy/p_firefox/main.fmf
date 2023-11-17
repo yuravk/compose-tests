@@ -1,0 +1,3 @@
+summary: imported p_firefox test set
+description: p_firefox imported as-is
+test: ./test.sh

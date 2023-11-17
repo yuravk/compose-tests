@@ -1,0 +1,32 @@
+PackageKit
+abrt
+apache-commons-net
+anaconda
+basesystem
+centos-indexhtml
+centos-logos
+centos-userland-release
+#compat-glibc (not available in armhfp)
+dhcp
+firefox
+#grub2 (not available yet in armhfp)
+httpd
+initial-setup
+ipa-client
+#kabi-yum-plugins (not available in armhfp)
+kde-settings
+libreport
+ntp
+#openssl098e (not available in armhfp)
+pcs
+plymouth
+redhat-rpm-config
+redhat-lsb
+scap-security-guide
+sos
+subscription-manager
+system-config-date
+system-config-kdump
+thunderbird
+#xulrunner (currently has the wrong disttag, will be fixed on the next update)
+yum

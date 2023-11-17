@@ -1,0 +1,3 @@
+summary: imported z_centos_pkg test set
+description: z_centos_pkg imported as-is
+test: ./test.sh

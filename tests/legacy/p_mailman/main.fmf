@@ -1,0 +1,3 @@
+summary: imported p_mailman test set
+description: p_mailman imported as-is
+test: ./test.sh

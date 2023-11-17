@@ -1,0 +1,3 @@
+summary: imported p_grep test set
+description: p_grep imported as-is
+test: ./test.sh

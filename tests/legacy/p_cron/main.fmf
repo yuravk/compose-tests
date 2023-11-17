@@ -1,0 +1,3 @@
+summary: imported p_cron test set
+description: p_cron imported as-is
+test: ./test.sh

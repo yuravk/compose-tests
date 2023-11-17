@@ -1,0 +1,3 @@
+summary: imported p_tomcat test set
+description: p_tomcat imported as-is
+test: ./test.sh

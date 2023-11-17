@@ -1,14 +1,3 @@
-require:
-    - podman # t_InstallPackage
-
-enabled: true
-adjust:
-  when: distro == centos-7
-  enabled: false
-
-/10_podman_tests.sh:
-    summary: imported 10_podman_tests.sh test
-    test: source ../functions.sh && ./10_podman_tests.sh
-/15_podman_socket_tests.sh:
-    summary: imported 15_podman_socket_tests.sh test
-    test: source ../functions.sh && ./15_podman_socket_tests.sh
+summary: imported p_podman test set
+description: p_podman imported as-is
+test: ./test.sh

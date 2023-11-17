@@ -1,0 +1,3 @@
+summary: imported p_squirrelmail test set
+description: p_squirrelmail imported as-is
+test: ./test.sh

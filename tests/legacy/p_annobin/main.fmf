@@ -1,0 +1,3 @@
+summary: imported p_annobin test set
+description: p_annobin imported as-is
+test: ./test.sh

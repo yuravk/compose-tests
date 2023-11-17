@@ -1,0 +1,23 @@
+#!/bin/bash
+# Author: Iian Douglas <centos@1n6.org.uk>
+
+# Test znew - converts .Z files to .gz
+# Create a test file
+
+if (t_GetPkgRel basesystem | grep -q el9)
+then
+  t_Log "This is a C9 system. Ncompress not present. Skipping."
+  t_CheckExitStatus 0
+  exit $PASS
+fi
+
+t_Log "Running $0 -  Testing znew"
+
+TESTFILE=/var/tmp/znew.txt
+rm $TESTFILE* &>/dev/null
+
+ls /usr/bin >$TESTFILE
+compress $TESTFILE 
+
+znew $TESTFILE.Z
+t_CheckExitStatus $?

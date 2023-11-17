@@ -1,0 +1,3 @@
+summary: imported p_abrt test set
+description: p_abrt imported as-is
+test: ./test.sh

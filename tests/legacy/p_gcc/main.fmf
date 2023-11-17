@@ -1,0 +1,3 @@
+summary: imported p_gcc test set
+description: p_gcc imported as-is
+test: ./test.sh

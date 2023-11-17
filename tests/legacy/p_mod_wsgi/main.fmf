@@ -1,0 +1,3 @@
+summary: imported p_mod_wsgi test set
+description: p_mod_wsgi imported as-is
+test: ./test.sh

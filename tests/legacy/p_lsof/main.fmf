@@ -1,0 +1,3 @@
+summary: imported p_lsof test set
+description: p_lsof imported as-is
+test: ./test.sh

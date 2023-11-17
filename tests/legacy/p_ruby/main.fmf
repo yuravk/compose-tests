@@ -1,0 +1,3 @@
+summary: imported p_ruby test set
+description: p_ruby imported as-is
+test: ./test.sh

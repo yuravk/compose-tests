@@ -1,0 +1,3 @@
+summary: imported p_sendmail test set
+description: p_sendmail imported as-is
+test: ./test.sh

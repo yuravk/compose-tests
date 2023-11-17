@@ -1,0 +1,3 @@
+summary: imported p_xorg-x11-server test set
+description: p_xorg-x11-server imported as-is
+test: ./test.sh

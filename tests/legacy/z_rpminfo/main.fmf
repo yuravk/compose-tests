@@ -1,0 +1,3 @@
+summary: imported z_rpminfo test set
+description: z_rpminfo imported as-is
+test: ./test.sh

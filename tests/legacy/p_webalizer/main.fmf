@@ -1,0 +1,3 @@
+summary: imported p_webalizer test set
+description: p_webalizer imported as-is
+test: ./test.sh

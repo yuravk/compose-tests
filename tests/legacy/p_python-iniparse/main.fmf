@@ -1,0 +1,3 @@
+summary: imported p_python-iniparse test set
+description: p_python-iniparse imported as-is
+test: ./test.sh

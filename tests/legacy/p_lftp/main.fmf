@@ -1,0 +1,3 @@
+summary: imported p_lftp test set
+description: p_lftp imported as-is
+test: ./test.sh

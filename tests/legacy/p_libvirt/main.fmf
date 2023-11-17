@@ -1,0 +1,3 @@
+summary: imported p_libvirt test set
+description: p_libvirt imported as-is
+test: ./test.sh

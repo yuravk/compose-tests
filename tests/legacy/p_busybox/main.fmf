@@ -1,0 +1,3 @@
+summary: imported p_busybox test set
+description: p_busybox imported as-is
+test: ./test.sh

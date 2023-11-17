@@ -1,0 +1,3 @@
+summary: imported p_network test set
+description: p_network imported as-is
+test: ./test.sh

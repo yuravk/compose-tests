@@ -1,0 +1,3 @@
+summary: imported p_strace test set
+description: p_strace imported as-is
+test: ./test.sh

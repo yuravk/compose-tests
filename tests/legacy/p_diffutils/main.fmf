@@ -1,0 +1,3 @@
+summary: imported p_diffutils test set
+description: p_diffutils imported as-is
+test: ./test.sh

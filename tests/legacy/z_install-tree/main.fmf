@@ -1,0 +1,3 @@
+summary: imported z_install-tree test set
+description: z_install-tree imported as-is
+test: ./test.sh

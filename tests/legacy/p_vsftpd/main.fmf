@@ -1,0 +1,3 @@
+summary: imported p_vsftpd test set
+description: p_vsftpd imported as-is
+test: ./test.sh

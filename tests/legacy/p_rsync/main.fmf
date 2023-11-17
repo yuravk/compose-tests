@@ -1,0 +1,3 @@
+summary: imported p_rsync test set
+description: p_rsync imported as-is
+test: ./test.sh

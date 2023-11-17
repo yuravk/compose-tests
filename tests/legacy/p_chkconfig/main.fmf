@@ -1,0 +1,3 @@
+summary: imported p_chkconfig test set
+description: p_chkconfig imported as-is
+test: ./test.sh

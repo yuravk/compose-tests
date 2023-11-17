@@ -1,0 +1,3 @@
+summary: imported p_perl test set
+description: p_perl imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported p_logrotate test set
+description: p_logrotate imported as-is
+test: ./test.sh

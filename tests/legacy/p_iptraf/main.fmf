@@ -1,0 +1,3 @@
+summary: imported p_iptraf test set
+description: p_iptraf imported as-is
+test: ./test.sh

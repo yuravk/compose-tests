@@ -1,0 +1,3 @@
+summary: imported p_python test set
+description: p_python imported as-is
+test: ./test.sh

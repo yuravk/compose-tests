@@ -1,0 +1,3 @@
+summary: imported p_audit test set
+description: p_audit imported as-is
+test: ./test.sh

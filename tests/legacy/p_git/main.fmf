@@ -1,0 +1,3 @@
+summary: imported p_git test set
+description: p_git imported as-is
+test: ./test.sh
