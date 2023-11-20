@@ -1,0 +1,3 @@
+summary: imported p_nfs test set
+description: p_nfs imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported p_telnet test set
+description: p_telnet imported as-is
+test: ./test.sh

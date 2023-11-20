@@ -1,8 +1,15 @@
 summary: Imported t_functional tests
 
+environment:
+    YUMDEBUG: 0
+    SKIP_QA_HARNESS: 1
 discover:
     how: fmf
     test:
         - /legacy
+prepare:
+    how: install
+    package:
+      - bind-utils
 execute:
     how: tmt

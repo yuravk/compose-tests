@@ -7,6 +7,19 @@ On Centos Stream 9 as `root`:
 tmt -vvv -c distro=centos-stream-9 run --all provision --how=local
 ```
 
+In order to run it with the `SKIP_QA_HARNESS=0` off (default as `1`):
+
+```sh
+tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=0 --all provision --how=local
+```
+
+or
+
+```sh
+tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=$(host repo.centos.qa > /dev/null; echo $?) --all provision --how=local
+```
+
+
 # Directory Structure
 
 ## `plans`
@@ -32,7 +45,11 @@ Organize your tests inside the folder by features you are testing. Feel free to 
 * `tmt` documentation: https://tmt.readthedocs.io
 * `beakerlib` documentation: https://beakerlib.readthedocs.io/en/latest/manual.html#
 
-When finished, ensure the tests pass the linting `tmt lint`.
+When finished, ensure the tests pass the linting, and pay attention to any warning:
+```sh
+tmt lint
+find ./tests/yourtest/ -name '*.sh' | xargs -n 1 shellcheck --severity=warning --shell=bash
+```
 
 You should be able to run your tests by simply cd'ing into them and running the shell scripts. Example:
 

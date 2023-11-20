@@ -1,0 +1,3 @@
+summary: imported p_acl test set
+description: p_acl imported as-is
+test: ./test.sh

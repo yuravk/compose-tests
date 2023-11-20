@@ -1,0 +1,3 @@
+summary: imported p_libbpf test set
+description: p_libbpf imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported p_shim test set
+description: p_shim imported as-is
+test: ./test.sh

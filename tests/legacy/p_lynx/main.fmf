@@ -1,0 +1,3 @@
+summary: imported p_lynx test set
+description: p_lynx imported as-is
+test: ./test.sh

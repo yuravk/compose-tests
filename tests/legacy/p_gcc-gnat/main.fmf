@@ -1,0 +1,3 @@
+summary: imported p_gcc-gnat test set
+description: p_gcc-gnat imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported r_pdf test set
+description: r_pdf imported as-is
+test: ./test.sh

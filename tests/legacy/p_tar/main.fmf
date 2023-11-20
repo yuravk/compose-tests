@@ -1,0 +1,3 @@
+summary: imported p_tar test set
+description: p_tar imported as-is
+test: ./test.sh

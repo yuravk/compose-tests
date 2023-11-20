@@ -1,0 +1,3 @@
+summary: imported r_check_mod_packages test set
+description: r_check_mod_packages imported as-is
+test: ./test.sh

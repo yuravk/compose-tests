@@ -1,0 +1,3 @@
+summary: imported p_mysql test set
+description: p_mysql imported as-is
+test: ./test.sh

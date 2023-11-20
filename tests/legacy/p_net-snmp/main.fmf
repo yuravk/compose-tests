@@ -1,0 +1,3 @@
+summary: imported p_net-snmp test set
+description: p_net-snmp imported as-is
+test: ./test.sh

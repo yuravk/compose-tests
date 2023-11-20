@@ -1,0 +1,3 @@
+summary: imported p_systemd test set
+description: p_systemd imported as-is
+test: ./test.sh

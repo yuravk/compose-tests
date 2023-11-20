@@ -1,0 +1,3 @@
+summary: imported p_bash test set
+description: p_bash imported as-is
+test: ./test.sh

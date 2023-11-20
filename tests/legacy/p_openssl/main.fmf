@@ -1,0 +1,3 @@
+summary: imported p_openssl test set
+description: p_openssl imported as-is
+test: ./test.sh

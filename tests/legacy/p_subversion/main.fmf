@@ -1,0 +1,3 @@
+summary: imported p_subversion test set
+description: p_subversion imported as-is
+test: ./test.sh

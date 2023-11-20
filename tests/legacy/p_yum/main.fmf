@@ -1,0 +1,3 @@
+summary: imported p_yum test set
+description: p_yum imported as-is
+test: ./test.sh

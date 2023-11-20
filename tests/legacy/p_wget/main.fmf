@@ -1,0 +1,3 @@
+summary: imported p_wget test set
+description: p_wget imported as-is
+test: ./test.sh

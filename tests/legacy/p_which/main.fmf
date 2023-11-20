@@ -1,0 +1,3 @@
+summary: imported p_which test set
+description: p_which imported as-is
+test: ./test.sh

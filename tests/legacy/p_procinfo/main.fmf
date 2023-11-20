@@ -1,0 +1,3 @@
+summary: imported p_procinfo test set
+description: p_procinfo imported as-is
+test: ./test.sh

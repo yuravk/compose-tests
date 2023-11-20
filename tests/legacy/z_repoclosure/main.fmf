@@ -1,0 +1,3 @@
+summary: imported z_repoclosure test set
+description: z_repoclosure imported as-is
+test: ./test.sh

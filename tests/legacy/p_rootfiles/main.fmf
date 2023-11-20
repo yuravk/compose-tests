@@ -1,0 +1,3 @@
+summary: imported p_rootfiles test set
+description: p_rootfiles imported as-is
+test: ./test.sh

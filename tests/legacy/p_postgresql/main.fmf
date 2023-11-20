@@ -1,0 +1,3 @@
+summary: imported p_postgresql test set
+description: p_postgresql imported as-is
+test: ./test.sh

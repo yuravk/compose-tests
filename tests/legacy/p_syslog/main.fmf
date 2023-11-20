@@ -1,0 +1,3 @@
+summary: imported p_syslog test set
+description: p_syslog imported as-is
+test: ./test.sh

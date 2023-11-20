@@ -1,0 +1,3 @@
+summary: imported p_libxml2-python test set
+description: p_libxml2-python imported as-is
+test: ./test.sh

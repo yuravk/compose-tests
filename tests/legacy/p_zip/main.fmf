@@ -1,0 +1,3 @@
+summary: imported p_zip test set
+description: p_zip imported as-is
+test: ./test.sh

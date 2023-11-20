@@ -1,0 +1,3 @@
+summary: imported p_rrdtool test set
+description: p_rrdtool imported as-is
+test: ./test.sh

@@ -1,0 +1,3 @@
+summary: imported p_openssh test set
+description: p_openssh imported as-is
+test: ./test.sh

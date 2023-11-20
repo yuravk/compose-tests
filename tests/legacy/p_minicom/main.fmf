@@ -1,0 +1,3 @@
+summary: imported p_minicom test set
+description: p_minicom imported as-is
+test: ./test.sh

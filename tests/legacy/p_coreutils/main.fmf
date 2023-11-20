@@ -1,0 +1,3 @@
+summary: imported p_coreutils test set
+description: p_coreutils imported as-is
+test: ./test.sh

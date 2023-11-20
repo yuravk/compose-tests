@@ -1,0 +1,3 @@
+summary: imported p_php_7.2 test set
+description: p_php_7.2 imported as-is
+test: ./test.sh

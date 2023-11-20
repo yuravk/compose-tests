@@ -1,0 +1,3 @@
+summary: imported p_vconfig test set
+description: p_vconfig imported as-is
+test: ./test.sh

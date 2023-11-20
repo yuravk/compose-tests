@@ -1,0 +1,3 @@
+summary: imported p_ntp test set
+description: p_ntp imported as-is
+test: ./test.sh

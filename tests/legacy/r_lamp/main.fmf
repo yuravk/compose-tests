@@ -1,0 +1,3 @@
+summary: imported r_lamp test set
+description: r_lamp imported as-is
+test: ./test.sh
