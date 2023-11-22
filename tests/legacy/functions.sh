@@ -258,6 +258,10 @@ export -f t_Select_Alternative
 export centos_ver
 export centos_stream
 export arch
+
+export readonly PASS=0
+export readonly FAIL=1
+
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0
 fi
