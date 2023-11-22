@@ -313,6 +313,9 @@ export kernel_sb_token
 export skip_z_tests
 export skip_r_tests
 
+export readonly PASS=0
+export readonly FAIL=1
+
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0
 fi
