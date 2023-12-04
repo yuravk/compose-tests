@@ -2,10 +2,10 @@
 =======
 
   -- The Way of Lao-Tzu, tr. Wing-tsit Chan
->>>>>>> ./tests/p_diffutils/files/tao
+>>>>>>> ./files/tao
 .
 11a
-<<<<<<< ./tests/p_diffutils/files/lao
+<<<<<<< ./files/lao
 .
 8c
   so we may see their result.

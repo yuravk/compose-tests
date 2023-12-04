@@ -22,10 +22,11 @@ def application(environ, start_response):
     start_response(status, response_headers)
     return [output]
 EOF
+restorecon -r /var/www/html
 
 systemctl restart httpd
 
-curl -s http://localhost/tfapp | grep -q 't_functional_mod_wsgi_test'
+curl -s --insecure https://localhost/tfapp | grep -q 't_functional_mod_wsgi_test'
 t_CheckExitStatus $?
 
 systemctl stop httpd

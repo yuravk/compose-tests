@@ -270,7 +270,7 @@ case $os_id in
         grub_sb_token='CentOS Secure Boot Signing 202'
         kernel_sb_token="CentOS Secure Boot Signing 201"
         key_template="CentOS \(Linux \)\?%s signing key"
-        firefox_start_page="www.centos.org"
+        firefox_start_page="https://centos.org/"
         ;;
     *)
         # Exit in default case

@@ -16,6 +16,7 @@ EOF
 htpasswd -c -b /etc/httpd/htpasswd test test
 mkdir -p /var/www/html/basic_auth_test
 echo "Basic authentication Test Page" > /var/www/html/basic_auth_test/index.html
+restorecon -r /var/www/html/
 t_ServiceControl httpd stop
 sleep 3
 killall httpd

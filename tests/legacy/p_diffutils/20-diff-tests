@@ -157,7 +157,7 @@ t_CheckExitStatus $?
 # start with normal format
 echo "Check diff output formats"
  
-DIR=./tests/p_diffutils
+DIR=.
 FILES="$DIR"/files
 
 echo "Check normal output format"

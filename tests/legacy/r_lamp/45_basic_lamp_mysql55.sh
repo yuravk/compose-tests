@@ -8,7 +8,7 @@ t_Log "Running $0 - install a minimal lamp stack, and test it"
 
 # MySQL
 # starting with 5.10, we have to differ between mysql55 and mysql
-if [ $centos_ver = 5 ]
+if [ $centos_ver -eq 5 ]
 then
   t_ServiceControl mysqld stop
   t_ServiceControl mysql55-mysqld start
@@ -47,6 +47,8 @@ VALUES ('mysqltest')");
 mysql_close(\$dbconnect);
 ?> 
 EOF
+
+restorecon -f /var/www/html
 
 ####################################################
 # testing

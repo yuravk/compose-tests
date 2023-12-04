@@ -15,7 +15,7 @@ if [ "$centos_ver" -ge 7 ] ; then
 fi
 
 
-if [ $centos_ver = 5 ]
+if [ $centos_ver -eq 5 ]
 then
   readonly DAEMONS=( httpd mysql55-mysqld )
 else

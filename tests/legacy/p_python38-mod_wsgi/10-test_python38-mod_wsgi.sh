@@ -3,11 +3,11 @@
 t_Log "Running $0 - Apache httpd python38-mod_wsgi is functional"
 
 
-if (t_GetPkgRel basesystem | grep -q el9)
+if [ $centos_ver -ge 9 ]
 then
   t_Log "This is a C9 system. python3-mod_wsgi not present. Skipping."
   t_CheckExitStatus 0
-  exit $PASS
+  exit 0
 fi
 
 
