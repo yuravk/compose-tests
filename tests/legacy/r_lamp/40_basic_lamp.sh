@@ -8,20 +8,25 @@ t_Log "Running $0 - install a minimal lamp stack, and test it"
 
 # MySQL
 # starting with 5.10, we have to differ between mysql55 and mysql
-if [ $centos_ver = 5 ]
+if [ $centos_ver -eq 5 ]
 then
   t_InstallPackage mysql55-mysql-server httpd mysql55-mysql php php-mysql wget
   t_ServiceControl mysql55-mysqld stop
-elif [ $centos_ver = 6 ]
+elif [ $centos_ver -eq 6 ]
 then
   t_InstallPackage httpd mysql mysql-server php php-mysql wget
-elif [ $centos_ver = 7 ]
+elif [ $centos_ver -eq 7 ]
 then
   t_InstallPackage httpd mysql mysql-server php php-mysqlnd wget
 else
   t_InstallPackage httpd mariadb mariadb-server php php-mysqlnd wget
 fi
-t_ServiceControl mysqld restart
+
+if [ "$centos_ver" -ge 7 ] ; then
+  t_ServiceControl mariadb restart
+else
+  t_ServiceControl mysqld restart
+fi
 t_ServiceControl httpd restart
 
 # Initializing a small MySQL db
@@ -54,6 +59,8 @@ VALUES ('mysqltest')");
 mysqli_close(\$dbconnect);
 ?> 
 EOF
+
+restorecon -r /var/www/html
 
 ####################################################
 # testing

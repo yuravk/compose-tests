@@ -1,3 +1,0 @@
-summary: imported p_centos-release test set
-description: p_centos-release imported as-is
-test: ./test.sh

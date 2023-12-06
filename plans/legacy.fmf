@@ -3,6 +3,12 @@ summary: Imported t_functional tests
 environment:
     YUMDEBUG: 0
     SKIP_QA_HARNESS: 1
+    vendor: "centos"
+    os_name: "CentOS"
+    grub_sb_token: "CentOS Secure Boot Signing 202"
+    kernel_sb_token: "CentOS Secure Boot Signing 201"
+    key_template: 'CentOS \(Linux \)\?%s signing key'
+    firefox_start_page: "https://centos.org/"
 discover:
     how: fmf
     test:

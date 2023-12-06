@@ -16,6 +16,10 @@ EOF
 
 mkdir -p /var/www/vhosts/test/
 echo "Virtual Host Test Page" > /var/www/vhosts/test/index.html
+
+semanage fcontext -a -t httpd_sys_content_t "/var/www/vhosts(/.*)?" > /dev/null 2>&1 || t_Log "vhosts selinux context already defined"
+restorecon -r /var/www/vhosts
+
 t_ServiceControl httpd stop
 sleep 3
 killall httpd

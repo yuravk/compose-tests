@@ -141,6 +141,12 @@ function t_StreamCheck
 # set stream variable
 centos_stream=$(t_StreamCheck)
 
+function t_GetMinorVer
+{
+    # returns the minor version or blank when no minor version
+    rpm -q $(rpm -qf /etc/redhat-release) --queryformat '%{version}\n' | awk -F. '{print $2}'
+}
+
 # Description: skip test on a particular release
 # Arguments: release, reason
 function t_SkipRelease {
@@ -221,6 +227,7 @@ function t_Assert_Equals
  [ $1 -eq $2 ]
  t_CheckExitStatus $?
 }
+
 function t_Select_Alternative
 {
 	name=$1
@@ -233,6 +240,15 @@ function t_Select_Alternative
 	t_Log "Selecing alternative $option for $name--$search"
 	/bin/echo "$option"|/usr/sbin/alternatives --config "$name" >/dev/null 2>&1
 }
+
+if [[ "$centos_ver" -eq 8 ]] ; then
+  key_ver="201"
+elif [[ "$centos_ver" -eq 9 ]] ; then
+  key_ver="201"
+fi 
+
+minor_ver=$(t_GetMinorVer)
+
 export -f t_Log
 export -f t_CheckExitStatus
 export -f t_InstallPackage
@@ -255,12 +271,12 @@ export -f t_CheckForPort
 export -f t_Assert
 export -f t_Assert_Equals
 export -f t_Select_Alternative
-export centos_ver
-export centos_stream
-export arch
-
 export readonly PASS=0
 export readonly FAIL=1
+export centos_ver
+export centos_stream
+export minor_ver
+export arch
 
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0

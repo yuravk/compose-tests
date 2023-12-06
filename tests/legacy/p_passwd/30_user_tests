@@ -27,13 +27,13 @@ t_Log "Test user can change own password"
 
 echo "passtest" | passwd --stdin passtest &>/dev/null
 passwd -n 0 passtest &>/dev/null
-./tests/p_passwd/_user_password.expect &>/dev/null
+./_user_password.expect &>/dev/null
 t_CheckExitStatus $?
 
 # Check that sending the wrong current password fails we send passtest
 
 t_Log "Check sending incorrect current password fails"
-./tests/p_passwd/_user_password.expect &>/dev/null
+./_user_password.expect &>/dev/null
 
 if [ $? -eq "3" ]
 then
@@ -48,7 +48,7 @@ fi
 t_Log "Testing Minimum password lifetine is enforced"
 echo "passtest" | passwd --stdin passtest &>/dev/null
 passwd -n 1 passtest &>/dev/null
-./tests/p_passwd/_user_password.expect  &>/dev/null
+./_user_password.expect  &>/dev/null
 
 if [ $? -eq "2" ]
 then
@@ -63,20 +63,20 @@ passwd -n 0 passtest &>/dev/null
 
 # Check very short password is rejected (single letter)
 t_Log "Test very short password is rejected (1 character)"
-./tests/p_passwd/_password_complexity.expect a &>/dev/null
+./_password_complexity.expect a &>/dev/null
 t_CheckExitStatus $?
 
 # Check a short password is rejected (4 chars)
 t_Log "Test short password is rejected (4 charaters)"
-./tests/p_passwd/_password_complexity.expect athe &>/dev/null
+./_password_complexity.expect athe &>/dev/null
 t_CheckExitStatus $?
 
 # Check password is rejected with insufficient complexity
 t_Log "Test insufficiently complex password is rejected"
-./tests/p_passwd/_password_complexity.expect betabeta &>/dev/null
+./_password_complexity.expect betabeta &>/dev/null
 t_CheckExitStatus $?
 
 # Check palindromic password is rejected
 t_Log "Check palindromic password is rejected"
-./tests/p_passwd/_password_complexity.expect qwe123321ewq &>/dev/null
+./_password_complexity.expect qwe123321ewq &>/dev/null
 t_CheckExitStatus $?
