@@ -61,7 +61,7 @@ cd tests/podman/image/ls
 You can also run them using the `tmt` tool. Example of how to run `podman/image/ls` with `tmt` directly on your machine.
 
 ```sh
-tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman/image/ls
+tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman
 ```
 
 Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If you pass `-vv` to the command as in the example above, you will get the full path to the output of each test. For example:
@@ -69,9 +69,9 @@ Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If y
 ```yaml
     report
         how: display
-            pass /tests/podman/image/ls
-                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman/image/ls-1/output.txt
-                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman/image/ls-1/journal.txt
+            pass /tests/podman
+                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/output.txt
+                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/journal.txt
         summary: 1 test passed
 ```
 

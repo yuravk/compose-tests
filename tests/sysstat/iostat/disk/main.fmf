@@ -1,0 +1,2 @@
+summary: iostat disk test
+description: a basic iostat test to verify disk measurement

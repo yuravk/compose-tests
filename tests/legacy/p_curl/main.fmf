@@ -1,3 +1,0 @@
-summary: imported p_curl test set
-description: p_curl imported as-is
-test: ./test.sh

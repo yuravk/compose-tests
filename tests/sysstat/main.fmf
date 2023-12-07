@@ -1,0 +1,5 @@
+summary: sysstat tests
+description: basic sysstat tests
+test: ./test.sh
+framework: beakerlib
+require: ["psmisc"]

@@ -1,0 +1,5 @@
+summary: curl smoke tests
+description: Verify that curl can access http-host and download index.html
+test: ./test.sh
+framework: beakerlib
+require: ["python3"]

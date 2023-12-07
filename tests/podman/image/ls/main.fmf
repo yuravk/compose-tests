@@ -1,2 +1,0 @@
-summary: tests podman image ls
-description: It tests podman ls with different options
