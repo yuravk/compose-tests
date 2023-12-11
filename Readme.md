@@ -54,11 +54,11 @@ find ./tests/yourtest/ -name '*.sh' | xargs -n 1 shellcheck --severity=warning -
 You should be able to run your tests by simply cd'ing into them and running the shell scripts. Example:
 
 ```sh
-cd tests/podman/image/ls
+cd tests/podman
 ./test.sh
 ```
 
-You can also run them using the `tmt` tool. Example of how to run `podman/image/ls` with `tmt` directly on your machine.
+You can also run them using the `tmt` tool. Example of how to run `podman` with `tmt` directly on your machine.
 
 ```sh
 tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman
