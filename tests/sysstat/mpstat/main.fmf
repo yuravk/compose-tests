@@ -1,0 +1,2 @@
+summary: mpstat test
+description: A simple mpstat test to verify cpu load is being measured

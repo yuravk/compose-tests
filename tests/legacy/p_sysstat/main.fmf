@@ -1,3 +1,0 @@
-summary: imported p_sysstat test set
-description: p_sysstat imported as-is
-test: ./test.sh

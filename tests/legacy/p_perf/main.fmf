@@ -1,3 +1,0 @@
-summary: imported p_perf test set
-description: p_perf imported as-is
-test: ./test.sh

@@ -1,0 +1,8 @@
+summary: libbpf-tools tests
+description: libbpf-tools tests
+test: ./test.sh
+framework: beakerlib
+enabled: true
+adjust:
+  when: distro == centos-7 or distro == centos-stream-8
+  enabled: false

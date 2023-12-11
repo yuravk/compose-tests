@@ -1,0 +1,4 @@
+summary: perf tests
+description: basic perf functionality tests
+test: ./test.sh
+framework: beakerlib

@@ -1,3 +1,0 @@
-summary: imported p_libbpf-tools test set
-description: p_libbpf-tools imported as-is
-test: ./test.sh
