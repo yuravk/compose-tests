@@ -110,7 +110,7 @@ done
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-filetop basic tracing"
-  rlRun "bpf-filetop 1 1"
+  rlRun "bpf-filetop 1 1 --noclear"
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-fsdist basic tracing"
