@@ -1,5 +1,5 @@
 summary: Essential command line features
-enabled: true
+enabled: false
 adjust:
   - when: distro == centos-7 or distro == centos-stream-8
     enabled: false
