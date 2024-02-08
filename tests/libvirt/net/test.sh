@@ -3,6 +3,10 @@
 
 rlJournalStart
 
+  rlPhaseStartSetup
+  rlServiceStart "libvirtd"
+  rlPhaseEnd
+
   rlPhaseStartTest "should version"
   rlRun "virsh --version"
   rlPhaseEnd
@@ -19,6 +23,10 @@ rlJournalStart
 
   rlPhaseStartTest "should find and list dhcp clients (empty) default network"
   rlRun "virsh -c qemu:///system net-dhcp-leases default"
+  rlPhaseEnd
+
+  rlPhaseStartCleanup
+  rlServiceStop "libvirtd"
   rlPhaseEnd
 
 rlJournalEnd

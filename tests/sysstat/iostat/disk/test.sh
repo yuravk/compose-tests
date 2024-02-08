@@ -20,7 +20,8 @@ rlJournalStart
   rlRun "/usr/bin/iostat -d 1 5 $drive > output 2>&1 &" 0 "Run iostat on the device"
   rlRun "sleep 1" 0 "Time for iostat booting" 
   rlRun "/bin/dd if=$drive of=/dev/null bs=$bs count=$count" 0 "Generate some read traffic"
-  rlRun "sleep 6" 0 "Give iostat a chance to log our task" 
+  rlRun "sleep 6" 0 "Give iostat a chance to log our task"
+  rlRun "cat output" 0 "Display captured output"
   rlRun "kbytes_read=\$(awk '\$6 ~ /[0-9]/ {NR>1 && sum+=\$6} END {print int(sum)}' output)" 0 "Extract the disk utilization"
   rlAssertNotEquals "Should register disk read utilization" $kbytes_read 0
   rlPhaseEnd

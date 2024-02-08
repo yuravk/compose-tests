@@ -158,7 +158,7 @@ done
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-slabratetop basic tracing"
-  rlRun "bpf-slabratetop 1 1"
+  rlRun "bpf-slabratetop 1 1 --noclear"
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-softirqs basic tracing"
@@ -174,7 +174,7 @@ done
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-tcptop basic tracing"
-  rlRun "bpf-tcptop 1 1"
+  rlRun "bpf-tcptop 1 1 --noclear"
   rlPhaseEnd
 
   rlPhaseStartTest "bpf-tcpsynbl basic tracing"

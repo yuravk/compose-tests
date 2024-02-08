@@ -3,6 +3,10 @@
 
 rlJournalStart
 
+  rlPhaseStartSetup
+  rlServiceStart "libvirtd"
+  rlPhaseEnd
+
   rlPhaseStartTest "should get version"
   rlRun "virsh --version"
   rlPhaseEnd
@@ -31,6 +35,10 @@ rlJournalStart
   rlPhaseStartTest "should access qemu socket with python"
   rlRun -s "python3 ./pyqemuaccess.py"
   rlAssertGrep "QEMU" $rlRun_LOG
+  rlPhaseEnd
+
+  rlPhaseStartCleanup
+  rlServiceStop "libvirtd"
   rlPhaseEnd
 
 rlJournalEnd

@@ -3,7 +3,9 @@
 
 rlJournalStart
 
-
+  rlPhaseStartSetup
+  rlServiceStart "libvirtd"
+  rlPhaseEnd
 
   rlPhaseStartTest "should not list test pool"
   rlRun -s "virsh -c qemu:///system pool-list --all"
@@ -85,5 +87,9 @@ rlJournalStart
   rlPhaseStartTest "should undefine test pool"
   rlRun -s "virsh -c qemu:///system pool-undefine libvirt-pool-test"
   rlAssertGrep "libvirt-pool-test has been undefined" $rlRun_LOG
+  rlPhaseEnd
+
+  rlPhaseStartCleanup
+  rlServiceStop "libvirtd"
   rlPhaseEnd
 rlJournalEnd
