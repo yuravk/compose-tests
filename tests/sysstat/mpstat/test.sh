@@ -24,7 +24,7 @@ done
   rlRun "sleep 10" 0 "Give mpstat a chance to log our task"
   rlRun "killall sha1sum" 0 "Stop CPU load"
   rlRun "cat output" 0 "Display captured output"
-  rlRun "cpu_user_percent=\$(awk '\$4 ~ /[0-9]\./ {\$4>a ? a=\$4 : \$4} END {print int(a)}' output)" 0 "Extract cpu utilization"
+  rlRun "cpu_user_percent=\$(awk '\$3 ~ /[0-9]\./ {\$3>a ? a=\$3 : \$3} END {print int(a)}' output)" 0 "Extract cpu utilization"
   rlAssertNotEquals "Should register CPU utilization" $cpu_user_percent 0
   rlPhaseEnd
 

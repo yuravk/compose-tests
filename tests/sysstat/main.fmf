@@ -3,3 +3,5 @@ description: basic sysstat tests
 test: ./test.sh
 framework: beakerlib
 require: ["psmisc"]
+environment:
+  S_TIME_FORMAT: ISO
