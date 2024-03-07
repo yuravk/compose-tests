@@ -7,7 +7,7 @@ arch=$(uname -m)
 
 if [[ "$centos_ver" -le 8 && "$arch" = "x86_64" ]] ; then
   t_RemovePackage fwupd
-  t_InstallPackage pesign fwupdate-efi
+  t_InstallPackage pesign fwupdate-efi.x86_64
   pesign --show-signature --in /boot/efi/EFI/almalinux/fwupx64.efi|egrep -q "$grub_sb_token"
   t_CheckExitStatus $?
 else
