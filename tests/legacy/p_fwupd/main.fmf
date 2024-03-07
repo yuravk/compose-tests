@@ -1,0 +1,3 @@
+summary: fwupd SB tests
+description: p_fwupd SB tests
+test: ./test.sh

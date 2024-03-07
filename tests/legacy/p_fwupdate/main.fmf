@@ -1,0 +1,3 @@
+summary: fwupdate SB tests
+description: p_fwupdate SB tests
+test: ./test.sh
