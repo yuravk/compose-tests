@@ -317,6 +317,7 @@ export skip_r_tests
 
 export readonly PASS=0
 export readonly FAIL=1
+export YUMDEBUG=1
 
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0
