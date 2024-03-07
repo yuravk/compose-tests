@@ -5,14 +5,14 @@ t_Log "Running $0 -  Verifying that kmod-kvdo is correctly signed with correct c
 
 arch=$(uname -m)
 
-if [[ "$centos_ver" -eq 8 && "$arch" = "x86_64" ]] ; then
+if [["$arch" = "x86_64" ]] ; then
     t_InstallPackage kmod-kvdo
     for i in $(rpm -ql kmod-kvdo | grep "*.ko"); do
         modinfo $i | grep $kmod_sb_key
         t_CheckExitStatus $?
     done
 else
-  t_Log "versions is not 8 - or not x86_64 arch - aren't using kmod-kvdo"
+  t_Log "not x86_64 arch - aren't using kmod-kvdo"
   exit 0
 fi
 
