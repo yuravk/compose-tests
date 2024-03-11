@@ -9,6 +9,9 @@ environment:
     kernel_sb_token: "AlmaLinux OS Foundation"
     key_template: 'AlmaLinux %s signing key'
     firefox_start_page: "www.almalinux.org"
+    minor_version: "8"
+    skip_z_tests: 1
+    skip_z_stream_tests: 1
 discover:
     how: fmf
     test:
