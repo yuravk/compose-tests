@@ -1,3 +1,0 @@
-summary: imported p_selinux test set
-description: p_selinux imported as-is
-test: ./test.sh

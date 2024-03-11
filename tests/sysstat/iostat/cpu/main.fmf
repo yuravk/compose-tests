@@ -1,0 +1,2 @@
+summary: iostat cpu test
+description: a basic iostat test to verify cpu measurement

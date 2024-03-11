@@ -1,11 +1,11 @@
 #!/bin/bash
 
 
-if (t_GetPkgRel basesystem | grep -q el9)
+if [ $centos_ver -ge 9 ]
 then
   t_Log "This is a C9 system. python38-mod_wsgi not present. Skipping."
   t_CheckExitStatus 0
-  exit $PASS
+  exit 0
 fi
 
 t_Log "Running $0 - removing python38-mod_wsgi"

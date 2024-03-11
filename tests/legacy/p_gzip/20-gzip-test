@@ -25,7 +25,7 @@ cleanup
 # Use the provided file as it has known contents and known name/timestamp
 # information.
 
-cp ./tests/p_gzip/gzip-test.txt.gz  /var/tmp
+cp ./gzip-test.txt.gz  /var/tmp
 
 #run file through gunzip
 t_Log "Test basic gunzip"
@@ -116,12 +116,12 @@ ls -l --time-style=+"%F %R" $FILE | grep -q '2010-11-22 13:11' &&  ExitFail
 
 # Reset the test file with a different name
 # the file should gunzup as gzip-test.1
-cp ./tests/p_gzip/gzip-test.txt.gz /var/tmp/gzip-test.txt.1.gz
+cp ./gzip-test.txt.gz /var/tmp/gzip-test.txt.1.gz
 gunzip $FILE.1.gz
 [ -e "$FILE.1" ] || ExitFail
 
 # Reset the test file with a different name
-cp ./tests/p_gzip/gzip-test.txt.gz /var/tmp/gzip-test.txt.1.gz
+cp ./gzip-test.txt.gz /var/tmp/gzip-test.txt.1.gz
 
 # The file should gunzip with it's original name and timestamp.
 gunzip -f -N $FILE.1.gz
@@ -135,7 +135,7 @@ gzip -t $FILE.gz 2>&1 | grep -qv "data--crc error" || ExitFail
 
 # Check we can use a custon suffix .iain will do ;)
 t_Log "Check that a custom suffix can be used -S"
-cp ./tests/p_gzip/gzip-test.txt.gz /var/tmp/gzip-test.txt.gz
+cp ./gzip-test.txt.gz /var/tmp/gzip-test.txt.gz
 gunzip $FILE.gz
 gzip -S .iain $FILE
 [ -e $FILE.iain ] || ExitFail

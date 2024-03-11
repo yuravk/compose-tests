@@ -54,14 +54,14 @@ find ./tests/yourtest/ -name '*.sh' | xargs -n 1 shellcheck --severity=warning -
 You should be able to run your tests by simply cd'ing into them and running the shell scripts. Example:
 
 ```sh
-cd tests/podman/image/ls
+cd tests/podman
 ./test.sh
 ```
 
-You can also run them using the `tmt` tool. Example of how to run `podman/image/ls` with `tmt` directly on your machine.
+You can also run them using the `tmt` tool. Example of how to run `podman` with `tmt` directly on your machine.
 
 ```sh
-tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman/image/ls
+tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman
 ```
 
 Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If you pass `-vv` to the command as in the example above, you will get the full path to the output of each test. For example:
@@ -69,9 +69,9 @@ Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If y
 ```yaml
     report
         how: display
-            pass /tests/podman/image/ls
-                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman/image/ls-1/output.txt
-                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman/image/ls-1/journal.txt
+            pass /tests/podman
+                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/output.txt
+                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/journal.txt
         summary: 1 test passed
 ```
 
@@ -101,3 +101,46 @@ enabled: false # disabling for now until issue #99999 is resolved
 # Tiers
 
 TODO: define the tiers and what tiers a test should go into.
+
+
+# How to Run the `legacy` Tests on Another EL Distro
+
+The legacy tests contains variable that are EL distro specific. These variables are defined in the `legacy.fmf` file. In order to run those tests in another EL distro, you would need to override them. You can do it in two different ways:
+
+A) Passing them in the command line, for example, running the test locally:
+
+```sh
+tmt -vvv -c distro=centos-stream-9 run \
+    -e vendor="eldistro" \
+    -e os_name="ELdistro" \
+    -e grub_sb_token="ELdistro Secure Boot Signing" \
+    -e kernel_sb_token="ELdistro Secure Boot Signing" \
+    -e key_template="ELdistro %s signing key" \
+    -e firefox_start_page="www.eldistro.org" \
+   --all provision --how=local
+```
+
+B) Defining a new plan importing `compose-tests`
+
+```yaml
+summary: Compose tests plan
+environment:
+  vendor: "eldistro"
+  os_name: "ELdistro"
+  grub_sb_token: "ELdistro Secure Boot Signing"
+  kernel_sb_token: "ELdistro Secure Boot Signing"
+  key_template: "ELdistro %s signing key"
+  firefox_start_page: "www.eldistro.org"
+discover:
+  how: fmf
+  url: https://gitlab.com/CentOS/Integration/compose-tests.git
+execute:
+  how: tmt
+```
+
+In order to run only a set of tests on the different EL distro, you can use `tmt` filtering to specify them:
+
+```sh
+# Run tests that their name start with `/legacy/p_`
+tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name '/legacy/p_.*'
+```

@@ -1,3 +1,0 @@
-summary: imported p_podman test set
-description: p_podman imported as-is
-test: ./test.sh

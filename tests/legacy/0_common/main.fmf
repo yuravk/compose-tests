@@ -1,4 +1,4 @@
 summary: imported 0_common test set
 description: 0_common imported as-is
 test: ./test.sh
-duration: 15m
+duration: 30m

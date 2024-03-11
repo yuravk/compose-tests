@@ -3,6 +3,12 @@ summary: Imported t_functional tests
 environment:
     YUMDEBUG: 0
     SKIP_QA_HARNESS: 1
+    vendor: "almalinux"
+    os_name: "AlmaLinux"
+    grub_sb_token: "AlmaLinux OS Foundation"
+    kernel_sb_token: "AlmaLinux OS Foundation"
+    key_template: 'AlmaLinux %s signing key'
+    firefox_start_page: "www.almalinux.org"
 discover:
     how: fmf
     test:

@@ -11,7 +11,7 @@ sdiff -v &>/dev/null
 
 t_CheckExitStatus $?
 
-FILES=./tests/p_diffutils/files
+FILES=./files
 
 # sdiff will take it's commands from a <file 
 echo "Testing sdiff interactive command"

@@ -10,7 +10,7 @@ t_Log "Running $0 - diff3 tests"
 diff3 -v &>/dev/null 
 t_CheckExitStatus $?
 
-DIR=./tests/p_diffutils
+DIR=.
 FILES=$DIR/files
 
 # Test the diff3 normal output. As we've already tested diff

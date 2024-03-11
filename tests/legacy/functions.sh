@@ -143,7 +143,8 @@ centos_stream=$(t_StreamCheck)
 
 function t_GetMinorVer
 {
-    rpm -q $(rpm -qf /etc/redhat-release) --queryformat '%{version}\n'|cut -f 2 -d '.'
+    # returns the minor version or blank when no minor version
+    rpm -q $(rpm -qf /etc/redhat-release) --queryformat '%{version}\n' | awk -F. '{print $2}'
 }
 
 # Description: skip test on a particular release
@@ -302,8 +303,11 @@ export -f t_CheckForPort
 export -f t_Assert
 export -f t_Assert_Equals
 export -f t_Select_Alternative
+export readonly PASS=0
+export readonly FAIL=1
 export centos_ver
 export centos_stream
+export minor_ver
 export arch
 export vendor
 export os_name

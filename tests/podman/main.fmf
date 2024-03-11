@@ -1,8 +1,7 @@
+summary: podman tests
+description: ensure podman basic functionality works
 test: ./test.sh
 framework: beakerlib
-tier: 2
-require: [podman]
-
 enabled: true
 adjust:
   when: distro == centos-7

@@ -1,0 +1,4 @@
+summary: selinux smoke tests
+description: basic selinux smoke tests
+test: ./test.sh
+framework: beakerlib
