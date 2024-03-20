@@ -1,0 +1,4 @@
+summary: acl smoke tests
+description: Verify that acl works as expected
+test: ./test.sh
+framework: beakerlib

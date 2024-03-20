@@ -1,0 +1,4 @@
+summary: attr smoke tests
+description: Verify that attr works as expected
+test: ./test.sh
+framework: beakerlib
