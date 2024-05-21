@@ -260,7 +260,7 @@ case $os_id in
         kernel_sb_token=$grub_sb_token
         key_template="AlmaLinux %s signing key"
         kmod_sb_key="63:88:9E:6C:FB:6E:4F:73:8A:47:63:3F:8D:66:56:13"
-        firefox_start_page="www.almalinux.org"
+        firefox_start_page="almalinux.org"
         minor_ver=$(t_GetMinorVer)
         skip_z_tests=1
         export minor_ver
