@@ -1,0 +1,7 @@
+id = "almalinux-{{version_major}}-{{arch}}-{{crb}}-pungi"
+name = "almalinux-{{version_major}}-{{arch}}-{{crb}}-pungi"
+type = "yum-baseurl"
+url = "http://{{arch}}-pungi-{{version_major}}.almalinux.org/almalinux/{{version_major}}/{{arch}}/latest_result/compose/{{crb}}/{{arch}}/os/"
+check_gpg = false
+check_ssl = false
+system = false
