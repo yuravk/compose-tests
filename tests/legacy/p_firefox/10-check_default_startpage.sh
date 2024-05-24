@@ -5,7 +5,7 @@
 
 t_Log "Running $0 - firefox has $firefox_start_page as default page."
 
-if (t_GetArch firefox | grep -q 'x86_64')
+if (t_GetArch firefox | egrep -qe 'x86_64|aarch64')
   then
   path='/usr/lib64/firefox/defaults/preferences/all-redhat.js'
   else
