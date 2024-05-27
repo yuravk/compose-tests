@@ -12,13 +12,6 @@ check_type=qcow
 wait_sec=20
 wait_count=30
 
-# OS major version and machine hardware name
-version_major=$( rpm --eval %rhel )
-crb='PowerTools'
-if [ "x${version_major}" = "x9" ]; then
-    crb='CRB'
-fi
-
 t_Log "Running $0 - osbuild: start to build '$blueprint' image, type '$image_type'"
 
 if [ "$CONTAINERTEST" -eq "1" ]; then
@@ -36,31 +29,6 @@ version = "0.0.1"
 name = "bash"
 version = "*"
 EOF
-
-if [ "x${pungi_repository}" = "xtrue" ]; then
-    t_Log "Running $0 - osbuild: prepare 'almalinux-*-pungi.toml'"
-    sed -i "s/{{arch}}/${arch}/g" almalinux-*-pungi.toml || t_CheckExitStatus $?
-    sed -i "s/{{version_major}}/${version_major}/g" almalinux-*-pungi.toml || t_CheckExitStatus $?
-    sed -i "s/{{crb}}/${crb}/g" almalinux-*-pungi.toml || t_CheckExitStatus $?
-
-    for toml in $( ls -1 almalinux-*-pungi.toml ); do
-        t_Log "Running $0 - osbuild: add '${toml}' to image builder"
-        composer-cli sources add ${toml} || t_CheckExitStatus $?
-    done
-
-    t_Log "Running $0 - osbuild: Change 'baseurl' for native BaseOS and AppStream repositories into pungi one"
-    os_repo_json="/usr/share/osbuild-composer/repositories/almalinux-${version_major}.${minor_ver}.json"
-    test -e ${os_repo_json}.bak || cp -av ${os_repo_json} ${os_repo_json}.bak
-    for repo_name in BaseOS AppStream; do
-        name=${repo_name,,}
-        baseurl="http://${arch}-pungi-${version_major}.almalinux.org/almalinux/${version_major}/${arch}/latest_result/compose/${repo_name}/${arch}/os/"
-        cat ${os_repo_json} | jq --arg arch "${arch}" --arg baseurl "${baseurl}" --arg name "${name}" '(.'$arch'[] | select(.name == $name) | .baseurl) |= $baseurl' > ${os_repo_json}.new
-        mv -f ${os_repo_json}.new ${os_repo_json}
-    done
-
-    t_Log "Running $0 - osbuild: check if the new source was successfully added"
-    composer-cli sources list || t_CheckExitStatus $?
-fi
 
 t_Log "Running $0 - osbuild: push '$test_toml' to blueprints"
 composer-cli blueprints push $test_toml || t_CheckExitStatus $?
