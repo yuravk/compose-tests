@@ -247,7 +247,39 @@ elif [[ "$centos_ver" -eq 9 ]] ; then
   key_ver="201"
 fi 
 
-minor_ver=$(t_GetMinorVer)
+os_id=$(source /etc/os-release; echo $ID)
+skip_z_tests=0
+skip_r_tests=0
+
+case $os_id in
+    almalinux)
+        # AlmaLinux variables
+        vendor="almalinux"
+        os_name="AlmaLinux"
+        grub_sb_token='AlmaLinux OS Foundation'
+        kernel_sb_token=$grub_sb_token
+        key_template="AlmaLinux %s signing key"
+        kmod_sb_key="63:88:9E:6C:FB:6E:4F:73:8A:47:63:3F:8D:66:56:13"
+        firefox_start_page="almalinux.org"
+        minor_ver=$(t_GetMinorVer)
+        skip_z_tests=1
+        export minor_ver
+        ;;
+    centos)
+        # CentOS variables
+        vendor="centos"
+        os_name="CentOS"
+        grub_sb_token='CentOS Secure Boot Signing 202'
+        kernel_sb_token="CentOS Secure Boot Signing 201"
+        key_template="CentOS \(Linux \)\?%s signing key"
+        firefox_start_page="www.centos.org"
+        ;;
+    *)
+        # Exit in default case
+        t_Log "Unknown OS ID: $os_id"
+        exit 1
+        ;;
+esac
 
 export -f t_Log
 export -f t_CheckExitStatus
@@ -277,6 +309,19 @@ export centos_ver
 export centos_stream
 export minor_ver
 export arch
+export vendor
+export os_name
+export grub_sb_token
+export kmod_sb_key
+export firefox_start_page
+export key_template
+export kernel_sb_token
+export skip_z_tests
+export skip_r_tests
+
+export readonly PASS=0
+export readonly FAIL=1
+export YUMDEBUG=1
 
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0

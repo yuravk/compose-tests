@@ -1,0 +1,3 @@
+summary: imported p_kmod_kvdo test set
+description: p_kmod_kvdo imported as-is
+test: ./test.sh

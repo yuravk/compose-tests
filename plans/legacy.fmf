@@ -3,12 +3,15 @@ summary: Imported t_functional tests
 environment:
     YUMDEBUG: 0
     SKIP_QA_HARNESS: 1
-    vendor: "centos"
-    os_name: "CentOS"
-    grub_sb_token: "CentOS Secure Boot Signing 202"
-    kernel_sb_token: "CentOS Secure Boot Signing 201"
-    key_template: 'CentOS \(Linux \)\?%s signing key'
-    firefox_start_page: "https://centos.org/"
+    vendor: "almalinux"
+    os_name: "AlmaLinux"
+    grub_sb_token: "AlmaLinux OS Foundation"
+    kernel_sb_token: "AlmaLinux OS Foundation"
+    key_template: 'AlmaLinux %s signing key'
+    firefox_start_page: "www.almalinux.org"
+    minor_version: "8"
+    skip_z_tests: 1
+    skip_z_stream_tests: 1
 discover:
     how: fmf
     test:
