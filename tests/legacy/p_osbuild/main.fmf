@@ -1,4 +1,4 @@
 summary: imported p_osbuild test set
 description: p_osbuild imported as-is
 test: ./test.sh
-duration: 65m
+duration: 20m

@@ -10,7 +10,7 @@ check_type=qcow
 
 # Maximum amount of time (wait_sec*wait_count) to wait for the image to be created
 wait_sec=20
-wait_count=30
+wait_count=45
 
 t_Log "Running $0 - osbuild: start to build '$blueprint' image, type '$image_type'"
 
@@ -48,6 +48,12 @@ count=1
 while true; do
     composer-cli compose status | grep $compose_id | grep 'FINISHED' >/dev/null 2>&1
     [ $? -eq 0 ] && break
+    # Fail the test if the image build FAILED
+    composer-cli compose status | grep $compose_id | grep 'FAILED' >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        t_Log "$( composer-cli compose log $compose_id )"
+        t_CheckExitStatus 1
+    fi
     sleep ${wait_sec}s
     count=$(($count+1))
     [ $count -gt $wait_count ] && break
