@@ -12,6 +12,9 @@ fi
 teststring=098f6bcd4621d373cade4e832627b4f6
 timenow=$(date +'%T')
 echo ${teststring} > /dev/kmsg
+
+# wait for 2 seconds for journalctl to populate
+sleep 2s
 journalctl --since ${timenow} | grep -q ${teststring}
 
 t_CheckExitStatus $?
