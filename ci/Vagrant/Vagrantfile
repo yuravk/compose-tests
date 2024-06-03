@@ -1,0 +1,30 @@
+Vagrant.configure("2") do |config|
+
+    config.env.enable
+    config.vm.box = ENV['vm_box']
+
+    config.vm.define 'almalinux'
+
+    config.vm.provider "libvirt" do |v|
+        v.memory = 12288
+        v.cpus = 4
+    end
+
+    config.vm.provision "shell", inline: <<-SHELL
+        # Put in place almalinux-pungi.repo if exists
+        test -e /vagrant/almalinux-pungi.repo && \
+        sudo cp -av /vagrant/almalinux-pungi.repo /etc/yum.repos.d/almalinux-pungi.repo || \
+        true
+
+        # Put in place almalinux-pulp.repo if exists
+        test -e /vagrant/almalinux-pulp.repo && \
+        sudo cp -av /vagrant/almalinux-pulp.repo /etc/yum.repos.d/almalinux-pulp.repo || \
+        true
+
+        sudo dnf -y update
+    SHELL
+
+    # Reboot after update
+    config.vm.provision :reload
+
+end

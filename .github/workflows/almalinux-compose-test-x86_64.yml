@@ -1,0 +1,181 @@
+name: almalinux-compose-test-x86_64
+
+on:
+  workflow_dispatch:
+      inputs:
+
+        version_major:
+          description: 'AlmaLinux major version'
+          required: true
+          default: '9'
+          type: choice
+          options:
+            - 9
+            - 8
+
+        pungi_repository:
+          description: 'Add AlmaLinux pungi repositories'
+          type: boolean
+
+        pulp_repository:
+          description: 'Add AlmaLinux pulp repositories'
+          type: boolean
+
+jobs:
+  compose-test:
+    name: Testing AlmaLinux ${{ inputs.version_major }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare stuff
+      run: |
+        # Name of repository to enable (PowerTools/CRB)
+        dnf_crb_repo='PowerTools'
+        if [ "${{ inputs.version_major }}" = "9" ]; then
+          dnf_crb_repo='CRB'
+        fi
+        if [ "x${{ inputs.pulp_repository }}" = "xtrue" ]; then
+          # Lowercase the name for path in pulp's URL
+          dnf_crb_repo="${dnf_crb_repo,,}"
+        fi
+        echo "dnf_crb_repo=${dnf_crb_repo}" >> $GITHUB_ENV
+
+        # Verify that CPU supports hardware virtualization
+        echo -n "Number of vmx|svm CPUs: " && grep -E -c '(vmx|svm)' /proc/cpuinfo
+
+        # Use proper Vagrantfile and set ENV variable of config.vm.box
+        cp -av ci/Vagrant/Vagrantfile ./
+        echo vm_box='almalinux/${{ inputs.version_major }}' > .env
+
+    - name: Install KVM Packages and Start libvirt
+      run: |
+        sudo apt-get -y update
+        sudo apt-get -y install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils
+        sudo systemctl enable --now libvirtd
+        sudo adduser "$(id -un)" libvirt
+        sudo adduser "$(id -un)" kvm
+
+    - name: Enable KVM group perms
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Tune libvirt
+      run: virsh list --all
+
+    - name: Install Vagrant
+      run: |
+        sudo apt-get -y install vagrant
+        sudo vagrant --version
+        sudo vagrant plugin install vagrant-reload
+        sudo vagrant plugin install vagrant-env
+
+    - name: Install the Vagrant libvirt Plugin
+      run: |
+        sudo cp /etc/apt/sources.list /etc/apt/sources.list."$(date +"%F")"
+        sudo sed -i -e '/^# deb-src.*universe$/s/# //g' /etc/apt/sources.list
+        sudo apt-get -y update
+        sudo apt-get -y install nfs-kernel-server
+        sudo systemctl enable --now nfs-server
+        sudo apt-get -y build-dep vagrant ruby-libvirt
+        sudo apt-get -y install ebtables dnsmasq-base
+        sudo apt-get -y install libxslt-dev libxml2-dev libvirt-dev zlib1g-dev ruby-dev
+        sudo vagrant plugin install vagrant-libvirt
+        sudo vagrant plugin install vagrant-scp
+
+    - name: Create AlmaLinux pungi repository
+      if: inputs.pungi_repository
+      run: |
+        cat <<'EOF'>./almalinux-pungi.repo
+        [almalinux-${{ inputs.version_major }}-appstream-pungi]
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/AppStream/$arch/os/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-appstream-pungi
+
+        [almalinux-${{ inputs.version_major }}-baseos-pungi]
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/BaseOS/$arch/os/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-baseos-pungi
+
+        [almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pungi]
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/${{ env.dnf_crb_repo }}/$arch/os/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pungi
+        EOF
+
+    - name: Create AlmaLinux pulp repository
+      if: inputs.pulp_repository
+      run: |
+        cat <<'EOF'>./almalinux-pulp.repo
+        [almalinux-${{ inputs.version_major }}-appstream-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ inputs.version_major }}-appstream-$arch/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-appstream-pulp
+
+        [almalinux-${{ inputs.version_major }}-baseos-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ inputs.version_major }}-baseos-$arch/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-baseos-pulp
+
+        [almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-$arch/
+        enabled = 1
+        name = almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pulp
+        EOF
+
+    - name: Run vagrant up
+      run: sudo vagrant up almalinux
+
+    - name: Prepare test infrastructure (dnf install epel-release)
+      run: sudo vagrant ssh almalinux -c 'sudo dnf -y install epel-release'
+
+    - name: Prepare test infrastructure (dnf install tmt)
+      run: |
+        enable_repo=${{ env.dnf_crb_repo }}
+        sudo vagrant ssh almalinux -c "sudo dnf install -y --enablerepo=${enable_repo,,} tmt"
+
+    - name: Get compose-tests
+      run: sudo vagrant ssh almalinux -c 'sudo cp -a /vagrant /compose-tests'
+
+    - name: Run tests
+      run: sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ inputs.version_major }} run --all provision --how=local'"
+
+    - name: Print tests results
+      if: success() || failure()
+      run: |
+        sudo vagrant ssh almalinux -c "sudo cat /var/tmp/tmt/run-001/plans/legacy/execute/results.yaml /var/tmp/tmt/run-001/plans/ng/execute/results.yaml"
+        sudo vagrant scp almalinux:/var/tmp/tmt/run-001/plans/legacy/execute/results.yaml ${{github.action_path}}/legacy.results.yaml
+        sudo vagrant scp almalinux:/var/tmp/tmt/run-001/plans/ng/execute/results.yaml ${{github.action_path}}/ng.results.yaml
+
+    - name: Print tests log
+      if: success() || failure()
+      run: |
+        sudo vagrant ssh almalinux -c "sudo cat /var/tmp/tmt/run-001/log.txt"
+        sudo vagrant scp almalinux:/var/tmp/tmt/run-001/log.txt ${{github.action_path}}/log.txt
+
+    - name: Collect tests output
+      if: success() || failure()
+      run: |
+        sudo vagrant ssh almalinux -c 'sudo sh -c "cd /var/tmp/tmt/run-001/; tar cf output.tar plans/legacy/execute/data/guest/default-0/tests/legacy/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/*/output.txt"'
+        sudo vagrant scp almalinux:/var/tmp/tmt/run-001/output.tar ${{github.action_path}}/output.tar
+
+    - uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: Tests log
+        path: ${{github.action_path}}/log.txt
+
+    - uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: Tests results
+        path: ${{github.action_path}}/*.results.yaml
+
+    - uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: Tests output
+        path: ${{github.action_path}}/output.tar
