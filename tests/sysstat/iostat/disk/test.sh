@@ -8,7 +8,7 @@ rlJournalStart
   rlRun 'TmpDir=$(mktemp -d)' 0 'Creating tmp directory' # no-reboot
   rlRun "pushd $TmpDir"
   rlRun "echo 1 > /proc/sys/vm/drop_caches" 0 "Clear out the pagecache to get an accurate reading"
-  rlRun "drive=\$(fdisk -l|grep -Po -m1 '^/dev/[\D]+')" 0 "Capture a storage device name"
+  rlRun "drive=/dev/\$(lsblk -o NAME -n -i -r | head -1)" 0 "Capture a storage device name"
 
   # dd options
   rlRun "bs=4196"
