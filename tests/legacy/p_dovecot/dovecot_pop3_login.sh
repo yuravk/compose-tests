@@ -18,7 +18,7 @@ chown -R pop3test:pop3test /home/pop3test/mail/.imap/INBOX
 t_Log "Dovecot POP3 login test"
 # EL7 comes with nmap-nc , different from nc so different options to use
 
-if [ "$centos_ver" -ge 7 ];then
+if nc --help | grep -e "--delay" >/dev/null;then
  nc_options="-d 3 -w 5"
 else
  nc_options="-i 3 -w 5"
