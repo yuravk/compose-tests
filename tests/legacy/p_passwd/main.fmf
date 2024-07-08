@@ -1,3 +1,6 @@
 summary: imported p_passwd test set
 description: p_passwd imported as-is
 test: ./test.sh
+#adjust:
+#  when: distro == centos-stream-10
+#  enabled: false # blank password cannot be force unlocked

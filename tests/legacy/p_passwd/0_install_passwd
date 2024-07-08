@@ -3,4 +3,4 @@
 
 # Ensure packages we use are installed
 t_Log "Running $0 installing required packages"
-t_InstallPackage passwd  expect
+t_InstallPackage passwd expect

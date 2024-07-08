@@ -1,3 +1,7 @@
 summary: imported p_spamassassin test set
 description: p_spamassassin imported as-is
 test: ./test.sh
+enabled: true
+adjust:
+  when: distro >= centos-stream-10
+  enabled: false # spamassassin will be only available on EPEL due to its dependency with libdb. https://issues.redhat.com/browse/RHEL-45946.

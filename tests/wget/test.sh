@@ -11,7 +11,7 @@ rlJournalStart
   rlPhaseEnd
 
   rlPhaseStartTest "Verifying that can download"
-  rlRun "wget -q --output-document=${FILE} http://localhost:8000/page/index.html"
+  rlRun "wget -q --output-document=${FILE} http://127.0.0.1:8000/page/index.html"
   rlAssertGrep "DOWNLOAD_TEST" "${FILE}"
   rlPhaseEnd
 
