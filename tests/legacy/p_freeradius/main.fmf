@@ -1,3 +1,0 @@
-summary: imported p_freeradius test set
-description: p_freeradius imported as-is
-test: ./test.sh

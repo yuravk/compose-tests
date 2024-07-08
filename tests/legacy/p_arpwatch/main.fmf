@@ -1,3 +1,7 @@
 summary: imported p_arpwatch test set
 description: p_arpwatch imported as-is
 test: ./test.sh
+enabled: false
+adjust:
+  when: distro = centos-8
+  enabled: true

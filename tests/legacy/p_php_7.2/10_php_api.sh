@@ -5,13 +5,6 @@ t_SkipReleaseLessThan 8 'no modularity'
 
 API='20170718'
 
-if (t_GetPkgRel basesystem | grep -q el9)
-then
-  t_Log "This is a C9 system. Php 7.2 module not present. Skipping."
-  t_CheckExitStatus 0
-  exit $PASS
-fi
-
 t_EnableModuleStream php:7.2
 
 t_InstallPackage php-cli

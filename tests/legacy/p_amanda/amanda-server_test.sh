@@ -2,20 +2,6 @@
 # Author: Christoph Galuschka <tigalch@tigalch.org>
 t_Log "Running $0 - amanda server runs a simple task (backing up /etc)"
 
-if (t_GetPkgRel basesystem | grep -q el5)
-then
-  t_Log "This is a C5 system. Skipping."
-  t_CheckExitStatus 0
-  exit $PASS
-fi
-
-if (t_GetPkgRel basesystem | grep -q el9)
-then
-  t_Log "This is a C9 system. Amanda not present. Skipping."
-  t_CheckExitStatus 0
-  exit $PASS
-fi
-
 ret_val=0
 
 # Creating necessary directories

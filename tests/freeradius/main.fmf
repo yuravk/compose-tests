@@ -1,0 +1,4 @@
+summary: freeradius smoke test
+description: Verify that freeradius works
+test: ./test.sh
+framework: beakerlib
