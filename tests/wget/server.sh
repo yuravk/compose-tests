@@ -2,7 +2,7 @@
 
 case $1 in
   start)
-    python3 -m http.server > /dev/null 2>&1 &
+    python3 -m http.server --bind localhost &
     server_pid=$!
     echo "Starting with PID: $server_pid"
     echo "$server_pid" > server.pid
