@@ -3,5 +3,5 @@ description: p_sendmail imported as-is
 test: ./test.sh
 enabled: true
 adjust:
-  when: distro == centos-stream-10
-  enabled: false # Unable to find a match: sendmail. https://issues.redhat.com/browse/RHEL-45947
+  when: distro >= centos-stream-10
+  enabled: false # sendmail deprecated after EL10: https://issues.redhat.com/browse/RHEL-45947
