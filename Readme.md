@@ -1,23 +1,24 @@
 # Quick Start
 
-On Centos Stream 9 as `root`:
-
-
-```sh
-tmt -vvv -c distro=centos-stream-9 run --all provision --how=local
-```
-
-In order to run it with the `SKIP_QA_HARNESS=0` off (default as `1`):
+Requirements:
 
 ```sh
-tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=0 --all provision --how=local
+dnf install tmt+all
 ```
 
-or
+Run all tests on centos-stream-9:
 
 ```sh
-tmt -vvv -c distro=centos-stream-9 run -e SKIP_QA_HARNESS=$(host repo.centos.qa > /dev/null; echo $?) --all provision --how=local
+tmt -vv -c distro=centos-stream-9 run -a provision --how=virtual --image centos-stream-9 prepare --how=install --package=epel-release
 ```
+
+Run only one test on centos-stream-9:
+
+```sh
+tmt -vv -c distro=centos-stream-9 run -a provision --how=virtual --image centos-stream-9 prepare --how=install --package=epel-release test --name /tests/sysstat
+```
+
+These commands will provision a local VM using libvirt from a centos-stream-9 image, copy the tests from the local directory into it, run them, and rsync the results from the VM to your machine on the directory `/var/tmp/tmt`.
 
 
 # Directory Structure
@@ -51,17 +52,10 @@ tmt lint
 find ./tests/yourtest/ -name '*.sh' | xargs -n 1 shellcheck --severity=warning --shell=bash
 ```
 
-You should be able to run your tests by simply cd'ing into them and running the shell scripts. Example:
+You should be able to run your tests individually as follow:
 
 ```sh
-cd tests/podman
-./test.sh
-```
-
-You can also run them using the `tmt` tool. Example of how to run `podman` with `tmt` directly on your machine.
-
-```sh
-tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name /podman
+tmt -vv -c distro=centos-stream-9 run -a provision --how=virtual --image centos-stream-9 prepare --how=install --package=epel-release test --name /tests/yourtest
 ```
 
 Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If you pass `-vv` to the command as in the example above, you will get the full path to the output of each test. For example:
@@ -69,9 +63,9 @@ Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If y
 ```yaml
     report
         how: display
-            pass /tests/podman
-                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/output.txt
-                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/podman-1/journal.txt
+            pass /tests/yourtest
+                output.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/yourteset-1/output.txt
+                journal.txt: /var/tmp/tmt/run-1/plans/execute/data/guest/default-0/tests/yourteset-1/journal.txt
         summary: 1 test passed
 ```
 
@@ -107,7 +101,7 @@ TODO: define the tiers and what tiers a test should go into.
 
 The legacy tests contains variable that are EL distro specific. These variables are defined in the `legacy.fmf` file. In order to run those tests in another EL distro, you would need to override them. You can do it in two different ways:
 
-A) Passing them in the command line, for example, running the test locally:
+A) Passing them in the command line, for example:
 
 ```sh
 tmt -vvv -c distro=centos-stream-9 run \
@@ -117,7 +111,7 @@ tmt -vvv -c distro=centos-stream-9 run \
     -e kernel_sb_token="ELdistro Secure Boot Signing" \
     -e key_template="ELdistro %s signing key" \
     -e firefox_start_page="www.eldistro.org" \
-   --all provision --how=local
+   --all provision --how=connect --guest=192.168.210.10 --user=somedefaultuser --become
 ```
 
 B) Defining a new plan importing `compose-tests`
@@ -142,5 +136,5 @@ In order to run only a set of tests on the different EL distro, you can use `tmt
 
 ```sh
 # Run tests that their name start with `/legacy/p_`
-tmt -vv -c distro=centos-stream-9 run -a provision --how=local test --name '/legacy/p_.*'
+tmt -vv -c distro=centos-stream-9 run -a provision --how=connect --guest=192.168.210.10 --user=somedefaultuser --become test --name '/legacy/p_.*'
 ```
