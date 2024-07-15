@@ -30,7 +30,6 @@ extract-changes:
 validate-cs9:
   stage: validate
   image: quay.io/testing-farm/cli:latest
-  when: manual
   script:
     - |
       testing-farm request \
@@ -43,15 +42,11 @@ validate-cs9:
 validate-cs10:
   stage: validate
   image: quay.io/testing-farm/cli:latest
-  when: manual
   script:
     - |
       testing-farm request \
       --git-ref $CI_MERGE_REQUEST_REF_PATH \
       --git-url $CI_MERGE_REQUEST_PROJECT_URL \
-      -e "grub_sb_token=Red\ Hat\ Test\ Certificate" \
-      -e "kernel_sb_token=Red\ Hat\ Test\ Certificate" \
-      -e "key_template=Red\ Hat\ Test\ Certificate" \
       --context distro=centos-stream-10 \
       --compose CentOS-Stream-10 \
       --test-filter "$(cat changed-tests-regex.log)"
