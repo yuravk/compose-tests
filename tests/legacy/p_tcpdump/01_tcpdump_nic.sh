@@ -21,27 +21,13 @@ eth_int=$(ip addr|grep -B 1 "link/ether"|head -n 1|awk '{print $2}'|tr -d ':')
   sleep 1
   # reading from file, for each ping we should see two pakets
   WORKING=$( tcpdump -r $FILE | grep -ci icmp )
-  if [ $SKIP_QA_HARNESS -eq 1 ]
+  if [ $WORKING != $[COUNT*2] ]
     then
-    # treat qa-harness and non qa-harness differently,
-    # the script will always succeed outside qa, but will log results
-    ret_val=0
-    if [ $WORKING != $[COUNT*2] ]
-      then
-      t_Log "ping to Default-Gateway did not return the number of pakets we expect. "$WORKING" of "$[COUNT*2]" pakets were dumped to file"
-    else
-      t_Log "ping to Default-Gateway looks OK. "$WORKING" of "$[COUNT*2]" pakets were dumped to file"
-    fi
+    t_Log "ping to Default-Gateway did not return the number of pakets we expect. "$WORKING" of "$[COUNT*2]" pakets were dumped to file"
+    ret_val=1
   else
-    # in qa-harness, which is a controlled environment, the script will fail at odd results
-    if [ $WORKING == $[COUNT*2] ] || [ $WORKING -gt $[COUNT*2] ]
-      then
-      t_Log "QA-harness: ping to Default-Gateway looks OK. At least "$[COUNT*2]" pakets ("$WORKING") were dumped to file"
-      ret_val=0
-    else
-      t_Log "QA-harness: ping to Default-Gateway droped pakets!! Only "$WORKING" of "$[COUNT*2]" entries were found!!"
-      ret_val=1
-    fi
+    t_Log "ping to Default-Gateway looks OK. "$WORKING" of "$[COUNT*2]" pakets were dumped to file"
+    ret_val=0
   fi
 # Remove file afterwards
 /bin/rm $FILE

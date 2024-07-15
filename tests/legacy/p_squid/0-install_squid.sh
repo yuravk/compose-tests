@@ -7,6 +7,6 @@ t_InstallPackage  squid
 # Add host entry
 echo "127.0.0.1   `hostname`" >> /etc/hosts
 
-service squid restart
+systemctl start squid
 t_CheckForPort 3128
 
