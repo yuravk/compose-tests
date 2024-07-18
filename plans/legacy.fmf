@@ -2,7 +2,6 @@ summary: Imported t_functional tests
 
 environment:
     YUMDEBUG: 0
-    SKIP_QA_HARNESS: 1
     vendor: "centos"
     os_name: "CentOS"
     grub_sb_token: "CentOS Secure Boot Signing 202"
@@ -13,7 +12,6 @@ adjust:
     when: distro == centos-stream-10
     environment:
         YUMDEBUG: 0
-        SKIP_QA_HARNESS: 1
         vendor: "centos"
         os_name: "CentOS"
         grub_sb_token: "Red\ Hat\ Test\ Certificate"
