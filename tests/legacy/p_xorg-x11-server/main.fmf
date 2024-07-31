@@ -3,5 +3,5 @@ description: p_xorg-x11-server imported as-is
 test: ./test.sh
 enabled: true
 adjust:
-  when: distro == centos-stream-10
-  enabled: false # https://issues.redhat.com/browse/RHEL-51878
+  when: distro >= centos-stream-10
+  enabled: false # Xorg won't be available in cs10. https://issues.redhat.com/browse/RHEL-51878
