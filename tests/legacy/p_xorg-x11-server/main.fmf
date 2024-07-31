@@ -1,3 +1,7 @@
 summary: imported p_xorg-x11-server test set
 description: p_xorg-x11-server imported as-is
 test: ./test.sh
+enabled: true
+adjust:
+  when: distro == centos-stream-10
+  enabled: false # https://issues.redhat.com/browse/RHEL-51878
