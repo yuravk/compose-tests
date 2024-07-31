@@ -5,8 +5,9 @@
 t_Log "Running $0 - TCPdump test to Default-GW with IPv4"
 
 # Grabing Default-Router if NIC
-def_gw=$(ip route list default|grep "default via"|head -n 1|awk '{print $3}')
-eth_int=$(ip addr|grep -B 1 "link/ether"|head -n 1|awk '{print $2}'|tr -d ':')
+def_gw_out=$(ip route list default|grep "default via"|head -n 1)
+def_gw=$(echo $def_gw_out | awk '{print $3}')
+eth_int=$(echo $def_gw_out | awk '{print $5}')
 
 t_Log "Found Default-GW - starting tcpdump test"
 #Dumping 4 pings via NIC to file
