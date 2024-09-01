@@ -3,9 +3,3 @@ description: 0_common imported as-is
 test: ./test.sh
 duration: 30m
 enabled: true
-adjust:
-  when: distro == centos-stream-10
-  enabled: false # https://issues.redhat.com/browse/RHEL-35859
-# Error: 
-# Problem: conflicting requests
-#  - nothing provides gtksourceview4 needed by virt-manager-4.1.0-5.el10.noarch from appstream
