@@ -79,13 +79,13 @@ done
   rlRun "bpf-biopattern 1 1"
   rlPhaseEnd
 
-#  rlPhaseStartTest "bpf-biosnoop basic tracing"
-#  rlRun "bpf-biosnoop 1"
-#  rlPhaseEnd
+  rlPhaseStartTest "bpf-biosnoop basic tracing"
+  rlRun "bpf-biosnoop 1"
+  rlPhaseEnd
 
-#  rlPhaseStartTest "bpf-biostacks basic tracing"
-#  rlRun "bpf-biostacks 1"
-#  rlPhaseEnd
+  rlPhaseStartTest "bpf-biostacks basic tracing"
+  rlRun "bpf-biostacks 1"
+  rlPhaseEnd
 
   rlPhaseStartTest "bpf-bitesize basic tracing"
   rlRun "bpf-bitesize 1 1"
@@ -139,9 +139,9 @@ done
   rlRun "bpf-offcputime 1"
   rlPhaseEnd
 
-#  rlPhaseStartTest "bpf-opensnoop basic tracing"
-#  rlRun "bpf-opensnoop -x -d 1"
-#  rlPhaseEnd
+  rlPhaseStartTest "bpf-opensnoop basic tracing"
+  rlRun "bpf-opensnoop -x -d 1"
+  rlPhaseEnd
 
 #  rlPhaseStartTest "bpf-readahead basic tracing"
 #  rlRun "bpf-readahead -d 1"

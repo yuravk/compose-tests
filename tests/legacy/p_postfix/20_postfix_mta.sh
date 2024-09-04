@@ -9,6 +9,7 @@ if [ "$CONTAINERTEST" -eq "1" ]; then
 fi
 
 ret_val=1
+timenow=$(date +'%T')
 
 # send mail to localhost
 mail=$(echo -e "helo localhost\nmail from: root@localhost\nrcpt to: root@localhost\ndata\nt_functional test\n.\nquit\n" | nc -w 5 127.0.0.1 25 | grep queued)
@@ -20,9 +21,9 @@ fi
 
 sleep 1
 
-if [ "$centos_ver" -eq "8" ]; then
+if [ "$centos_ver" -ge "8" ]; then
   t_Log "Dumping journalctl to /var/log/maillog"
-  journalctl -u postfix >> /var/log/maillog
+  journalctl --since ${timenow} -u postfix >> /var/log/maillog
 fi
 
 regex='250\ 2\.0\.0\ Ok\:\ queued\ as\ ([0-9A-Z]*).*'

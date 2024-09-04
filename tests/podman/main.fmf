@@ -6,8 +6,3 @@ enabled: true
 adjust:
   - when: distro == centos-7
     enabled: false
-  - when: distro == centos-stream-10
-    enabled: false
-    # https://issues.redhat.com/browse/RHEL-32374
-    # Error: netavark: unable to append rule '! -d 224.0.0.0/4 -j MASQUERADE' to table 'nat': code: 4, msg: Warning: Extension MASQUERADE revision 0 not supported, missing kernel module?
-    # iptables v1.8.10 (nf_tables):  RULE_APPEND failed (No such file or directory): rule in chain NETAVARK-1D8721804F16F
