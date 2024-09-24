@@ -1,3 +1,7 @@
 summary: imported p_sendmail test set
 description: p_sendmail imported as-is
 test: ./test.sh
+enabled: true
+adjust:
+  when: distro >= centos-stream-10
+  enabled: false # sendmail deprecated after EL10: https://issues.redhat.com/browse/RHEL-45947

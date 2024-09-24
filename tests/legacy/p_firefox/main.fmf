@@ -1,3 +1,7 @@
 summary: imported p_firefox test set
 description: p_firefox imported as-is
 test: ./test.sh
+enabled: true
+adjust:
+  when: distro >= centos-stream-10
+  enabled: false # firefox deprecated in RHEL10 https://issues.redhat.com/browse/RHEL-46005

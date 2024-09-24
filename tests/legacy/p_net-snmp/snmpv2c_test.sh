@@ -3,9 +3,9 @@
 # Author: Christoph Galuschka <christoph.galuschka@chello.at>
 
 
-if (t_GetPkgRel basesystem | grep -q el9)
+if (t_GetPkgRel basesystem | grep -q  -e el9 -e el10)
 then
-  t_Log "This is a C9 system. Snmpwal failing. Fix later. Skipping."
+  t_Log "This is a C9/C10 system. Snmpwal failing. Fix later. Skipping."
   t_CheckExitStatus 0
   exit $PASS
 fi

@@ -1,0 +1,4 @@
+summary: squid smoke tests
+description: Verify that squidclient can request site
+test: ./test.sh
+framework: beakerlib

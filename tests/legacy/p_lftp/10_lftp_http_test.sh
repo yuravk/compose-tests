@@ -12,11 +12,7 @@ if [ "$CONTAINERTEST" -eq "1" ]; then
     exit 0
 fi
 
-if [ $SKIP_QA_HARNESS -eq 1 ]; then
-  URL="http://mirror.centos.org/"
-else
-  URL="http://repo.centos.qa/srv/CentOS/"
-fi
+URL="http://mirror.centos.org/"
 
 CHECK_FOR="UTC"
 FILE="timestamp.txt"
