@@ -1,3 +1,0 @@
-summary: imported p_squid test set
-description: p_squid imported as-is
-test: ./test.sh

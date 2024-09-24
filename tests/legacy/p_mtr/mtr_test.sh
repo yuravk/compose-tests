@@ -8,12 +8,7 @@ fi
 
 TEST=mtr
 
-# Testing availability of network
-if [ $SKIP_QA_HARNESS -eq 1 ]; then
-  HOST="www.centos.org"
-else
-  HOST="www.centos.org"
-fi
+HOST="www.centos.org"
 
 t_Log "Running $0 - running ${TEST} to ${HOST}"
 ret_val=1

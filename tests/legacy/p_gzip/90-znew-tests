@@ -4,9 +4,9 @@
 # Test znew - converts .Z files to .gz
 # Create a test file
 
-if (t_GetPkgRel basesystem | grep -q el9)
+if (t_GetPkgRel basesystem | grep -q -e el9 -e el10)
 then
-  t_Log "This is a C9 system. Ncompress not present. Skipping."
+  t_Log "This is a C9/C10 system. Ncompress not present. Skipping."
   t_CheckExitStatus 0
   exit $PASS
 fi

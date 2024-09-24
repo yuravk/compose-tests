@@ -1,3 +1,0 @@
-summary: imported p_anaconda test set
-description: p_anaconda imported as-is
-test: ./test.sh

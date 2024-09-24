@@ -15,6 +15,7 @@ lint:
     - tmt lint --failed-only
     - find . -name '*.sh' -not -path "*/legacy/*" | xargs -n 1 shellcheck --severity=error --shell=bash
 
+
 extract-changes:
   stage: changes
   image: docker.io/bitnami/git:latest
@@ -27,16 +28,48 @@ extract-changes:
     paths:
       - changed-tests-regex.log
 
+validate-only-changed-tests-cs9:
+  stage: validate
+  image: quay.io/testing-farm/cli:latest
+  script:
+    - |
+      testing-farm request \
+      --git-ref $CI_MERGE_REQUEST_REF_PATH \
+      --git-url $CI_MERGE_REQUEST_PROJECT_URL \
+      --context distro=centos-stream-9 \
+      --compose CentOS-Stream-9 \
+      --test-filter "$(cat changed-tests-regex.log)"
+
 validate-cs9:
   stage: validate
   image: quay.io/testing-farm/cli:latest
-  when: manual
   script:
-    - testing-farm request --git-ref $CI_MERGE_REQUEST_REF_PATH --git-url $CI_MERGE_REQUEST_PROJECT_URL --compose CentOS-Stream-9 --test-filter "$(cat changed-tests-regex.log)"
+    - |
+      testing-farm request \
+      --git-ref $CI_MERGE_REQUEST_REF_PATH \
+      --git-url $CI_MERGE_REQUEST_PROJECT_URL \
+      --context distro=centos-stream-9 \
+      --compose CentOS-Stream-9
+
+validate-only-changed-tests-cs10:
+  stage: validate
+  image: quay.io/testing-farm/cli:latest
+  script:
+    - |
+      testing-farm request \
+      --git-ref $CI_MERGE_REQUEST_REF_PATH \
+      --git-url $CI_MERGE_REQUEST_PROJECT_URL \
+      --context distro=centos-stream-10 \
+      --compose CentOS-Stream-10 \
+      --test-filter "$(cat changed-tests-regex.log)"
 
 validate-cs10:
   stage: validate
   image: quay.io/testing-farm/cli:latest
-  when: manual
   script:
-    - testing-farm request --git-ref $CI_MERGE_REQUEST_REF_PATH --git-url $CI_MERGE_REQUEST_PROJECT_URL --compose CentOS-Stream-10 --test-filter "$(cat changed-tests-regex.log)"
+    - |
+      testing-farm request \
+      --git-ref $CI_MERGE_REQUEST_REF_PATH \
+      --git-url $CI_MERGE_REQUEST_PROJECT_URL \
+      --context distro=centos-stream-10 \
+      --compose CentOS-Stream-10
