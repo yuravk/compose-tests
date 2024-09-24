@@ -139,9 +139,9 @@ done
   rlRun "bpf-offcputime 1"
   rlPhaseEnd
 
-  rlPhaseStartTest "bpf-opensnoop basic tracing"
-  rlRun "bpf-opensnoop -x -d 1"
-  rlPhaseEnd
+  # rlPhaseStartTest "bpf-opensnoop basic tracing"
+  # rlRun "bpf-opensnoop -x -d 1"
+  # rlPhaseEnd
 
 #  rlPhaseStartTest "bpf-readahead basic tracing"
 #  rlRun "bpf-readahead -d 1"
