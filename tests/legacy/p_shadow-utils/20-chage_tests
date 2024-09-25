@@ -11,5 +11,7 @@ chage -d 2013-01-01 testshadow
 t_CheckExitStatus $?
 
 echo "Check that last passwd change is reported correctly"
-chage -l testshadow | grep Last | grep -q "Jan 01, 2013"
+check_date="Jan 01, 2013"
+[ $centos_ver -eq 10 ] && check_date="Dec 31, 2012"
+chage -l testshadow | grep Last | grep -q "${check_date}"
 t_CheckExitStatus $?
