@@ -125,10 +125,17 @@ function t_GetPkgRel
        rpm -q --queryformat '%{RELEASE}' $1
 }
 
+# Description: return the package which provides /etc/redhat-release
+function t_ReleasePkg
+{
+	rpm -qf /etc/redhat-release
+}
+release_pkg=$(t_ReleasePkg)
+
 # Description: return the distro release (returns 5 or 6 now)
 function t_DistCheck
 {
-	rpm -q $(rpm -qf /etc/redhat-release) --queryformat '%{version}\n'|cut -f 1 -d '.'
+	rpm -q "$release_pkg" --queryformat '%{version}\n'|cut -f 1 -d '.'
 }
 # Additionally set distro release to $centos_ver
 centos_ver=$(t_DistCheck)
@@ -144,7 +151,7 @@ centos_stream=$(t_StreamCheck)
 function t_GetMinorVer
 {
     # returns the minor version or blank when no minor version
-    rpm -q $(rpm -qf /etc/redhat-release) --queryformat '%{version}\n' | awk -F. '{print $2}'
+    rpm -q "$release_pkg" --queryformat '%{version}\n' | awk -F. '{print $2}'
 }
 
 # Description: skip test on a particular release
@@ -303,8 +310,6 @@ export -f t_CheckForPort
 export -f t_Assert
 export -f t_Assert_Equals
 export -f t_Select_Alternative
-export readonly PASS=0
-export readonly FAIL=1
 export centos_ver
 export centos_stream
 export minor_ver
@@ -319,9 +324,16 @@ export kernel_sb_token
 export skip_z_tests
 export skip_r_tests
 
-export readonly PASS=0
-export readonly FAIL=1
+readonly PASS=0
+export PASS
+readonly FAIL=1
+export FAIL
 export YUMDEBUG=1
+if [[ $release_pkg =~ "kitten" || $minor_ver = "" ]]; then
+    export release_ver="${centos_ver}"
+else
+    export release_ver="${centos_ver}.${minor_ver}"
+fi
 
 if [ -z "$CONTAINERTEST" ]; then
     export CONTAINERTEST=0

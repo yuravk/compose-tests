@@ -1,9 +1,9 @@
 #!/bin/bash
 # Author: Fabian Arrotin <arrfab@centos.org>
 
-t_Log "Running $0 - /etc/os-release has correct ABRT string for $os_name $centos_ver"
+t_Log "Running $0 - /etc/os-release has correct ABRT string for $os_name $release_ver"
 
-lines_to_check="${os_name^^}_MANTISBT_PROJECT=\"$os_name-$centos_ver\" ${os_name^^}_MANTISBT_PROJECT_VERSION=\"$centos_ver.$minor_ver\""
+lines_to_check="${os_name^^}_MANTISBT_PROJECT=\"$os_name-$centos_ver\" ${os_name^^}_MANTISBT_PROJECT_VERSION=\"$release_ver\""
 
 if [ "$centos_ver" -ge 7 ];then
 	if [[ $centos_stream == "no" ]]; then

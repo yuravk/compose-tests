@@ -7,6 +7,7 @@ arch=$(uname -m)
 
 if [[ "$centos_ver" -ge 7 && "$arch" = "x86_64" ]] ; then
   t_InstallPackage pesign fwupd
+  [ $centos_ver -eq 10 ] && t_InstallPackage fwupd-efi
   pesign --show-signature --in /usr/libexec/fwupd/efi/fwupdx64.efi.signed|egrep -q "$grub_sb_token"
   t_CheckExitStatus $?
 else
