@@ -95,17 +95,17 @@ jobs:
       run: |
         cat <<'EOF'>/etc/yum.repos.d/almalinux-pungi.repo
         [almalinux-${{ inputs.version_major }}-appstream-pungi]
-        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/AppStream/$arch/os/
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.dev/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/AppStream/$arch/os/
         enabled = 1
         name = almalinux-${{ inputs.version_major }}-appstream-pungi
 
         [almalinux-${{ inputs.version_major }}-baseos-pungi]
-        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/BaseOS/$arch/os/
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.dev/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/BaseOS/$arch/os/
         enabled = 1
         name = almalinux-${{ inputs.version_major }}-baseos-pungi
 
         [almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pungi]
-        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.org/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/${{ env.dnf_crb_repo }}/$arch/os/
+        baseurl = http://$arch-pungi-${{ inputs.version_major }}.almalinux.dev/almalinux/${{ inputs.version_major }}/$arch/latest_result/compose/${{ env.dnf_crb_repo }}/$arch/os/
         enabled = 1
         name = almalinux-${{ inputs.version_major }}-${{ env.dnf_crb_repo }}-pungi
         EOF
