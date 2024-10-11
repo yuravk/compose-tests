@@ -29,7 +29,7 @@ if [ "x${pungi_repository}" = "xtrue" ]; then
     t_InstallPackageMinimal jq
     for repo_name in BaseOS AppStream; do
         name=${repo_name,,}
-        baseurl="http://${arch}-pungi-${centos_ver}.almalinux.org/almalinux/${centos_ver}/${arch}/${latest_result}/compose/${repo_name}/${arch}/os/"
+        baseurl="http://${arch}-pungi-${centos_ver}.almalinux.dev/almalinux/${centos_ver}/${arch}/${latest_result}/compose/${repo_name}/${arch}/os/"
         cat ${os_repo_json} | jq --arg arch "${arch}" --arg baseurl "${baseurl}" --arg name "${name}" '(.'$arch'[] | select(.name == $name) | .baseurl) |= $baseurl' > ${os_repo_json}.new || t_CheckExitStatus $?
         mv -f ${os_repo_json}.new ${os_repo_json}
     done
