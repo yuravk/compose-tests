@@ -10,7 +10,7 @@ if [[ $os_name == "centos" ]]; then
   exit 0
 fi
 
-if [["$arch" = "x86_64" ]] ; then
+if [[ "$arch" = "x86_64" ]] ; then
     t_InstallPackage kmod-kvdo
     for i in $(rpm -ql kmod-kvdo | grep "*.ko"); do
         modinfo $i | grep $kmod_sb_key
