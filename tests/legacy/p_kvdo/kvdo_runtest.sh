@@ -26,9 +26,10 @@
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# only run on centos 8 for now
-if [ "$centos_ver" -ne "8" ]; then
-  t_Log "non c8 => SKIPPING"
+
+# only run on 8 or 9
+if [ "$centos_ver" -ne "8" -a "$centos_ver" -ne "9" ]; then
+  t_Log "non 8 or 9 => SKIPPING"
   exit 0
 fi
 
@@ -68,23 +69,6 @@ fi
 
 rlJournalStart
 
-rlPhaseStartSetup "Create backing device"
-        rlRun "TmpDir=\$(mktemp -d)" 0 "Creating tmp directory"
-        rlRun "pushd $TmpDir"
-        rlRun "df ."
-
-        # If we end up with less than 10G of available space, then we can't
-        # create a VDO volume sufficient for testing.  We should bail out as a
-        # result.
-        loopbackSize=$(($(df --sync --output=avail / | tail -1) * 1024 - 1024*1024*1024))
-        if [ ${loopbackSize} -lt $((1024*1024*1024*10)) ]; then
-          rlDie "Not enough space to create loopback device."
-        fi
-        rlRun "truncate -s ${loopbackSize} $TmpDir/loop0.bin" 0 "Laying out loopfile backing"
-        rlRun "losetup /dev/loop0 $TmpDir/loop0.bin" 0 "Creating loopdevice"
-        rlRun "mkdir -p /mnt/testmount" 0 "Creating test mountpoint dir"
-rlPhaseEnd
-
 rlPhaseStartSetup "Install software"
         if ! rlCheckRpm kmod-kvdo
         then
@@ -102,8 +86,33 @@ rlPhaseStartTest "Gather Relevant Info"
         # Gather some system information for debug purposes
         rlRun "uname -a"
         rlRun "find /lib/modules -name kvdo.ko"
-        rlRun "modinfo uds" || insertModuleWithDMesgOutput uds
+        if [ "$centos_ver" -eq "8" ]; then
+                rlRun "modinfo uds" || insertModuleWithDMesgOutput uds
+        fi
         rlRun "modinfo kvdo" || insertModuleWithDMesgOutput kvdo
+rlPhaseEnd
+
+if [ "$centos_ver" -ne "8" ]; then
+        rlJournalPrintText
+        rlJournalEnd
+        exit 0
+fi
+
+rlPhaseStartSetup "Create backing device"
+        rlRun "TmpDir=\$(mktemp -d)" 0 "Creating tmp directory"
+        rlRun "pushd $TmpDir"
+        rlRun "df ."
+
+        # If we end up with less than 10G of available space, then we can't
+        # create a VDO volume sufficient for testing.  We should bail out as a
+        # result.
+        loopbackSize=$(($(df --sync --output=avail / | tail -1) * 1024 - 1024*1024*1024))
+        if [ ${loopbackSize} -lt $((1024*1024*1024*10)) ]; then
+        rlDie "Not enough space to create loopback device."
+        fi
+        rlRun "truncate -s ${loopbackSize} $TmpDir/loop0.bin" 0 "Laying out loopfile backing"
+        rlRun "losetup /dev/loop0 $TmpDir/loop0.bin" 0 "Creating loopdevice"
+        rlRun "mkdir -p /mnt/testmount" 0 "Creating test mountpoint dir"
 rlPhaseEnd
 
 rlPhaseStartTest "Generate Test Data"
@@ -151,7 +160,7 @@ do
                 # Copy the test data onto VDO volume 4 times to get some deduplication
                 for i in {1..4}
                 do
-                  rlRun "cp ${TmpDir}/urandom_fill_file /mnt/testmount/test_file-${i}"
+                rlRun "cp ${TmpDir}/urandom_fill_file /mnt/testmount/test_file-${i}"
                 done
                 rlRun "df --sync /mnt/testmount"
                 rlRun "vdostats vdo1"
@@ -194,7 +203,7 @@ do
                                 ;;
                         "part"*)
                                 rlPhaseStartCleanup
-                                    rlRun "parted -s /dev/loop0 rm 1" 0 "Removing partition"
+                                rlRun "parted -s /dev/loop0 rm 1" 0 "Removing partition"
                                 rlPhaseEnd
                                 ;;
                         *)

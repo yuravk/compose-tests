@@ -10,9 +10,14 @@ if [[ $os_name == "centos" ]]; then
   exit 0
 fi
 
+if [ "$centos_ver" -ne "8" -a "$centos_ver" -ne "9" ]; then
+  t_Log "non 8 or 9 => SKIPPING"
+  exit 0
+fi
+
 if [[ "$arch" = "x86_64" ]] ; then
     t_InstallPackage kmod-kvdo
-    for i in $(rpm -ql kmod-kvdo | grep "*.ko"); do
+    for i in $(rpm -ql kmod-kvdo | grep -E "*.ko"); do
         modinfo $i | grep $kmod_sb_key
         t_CheckExitStatus $?
     done
