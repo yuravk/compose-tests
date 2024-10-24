@@ -208,25 +208,25 @@ jobs:
         sudo vagrant ssh almalinux -c "sudo cat ${{ env.tmt_run_dir }}/log.txt"
         sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/log.txt ${{github.action_path}}/log.txt
 
-    - name: Collect tests output
-      run: |
-        sudo vagrant ssh almalinux -c 'sudo sh -c "cd ${{ env.tmt_run_dir }}/; tar cf output.tar plans/legacy/execute/data/guest/default-0/tests/legacy/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/*/output.txt"'
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/output.tar ${{github.action_path}}/output.tar
+    # - name: Collect tests output
+    #   run: |
+    #     sudo vagrant ssh almalinux -c 'sudo sh -c "cd ${{ env.tmt_run_dir }}/; tar cf output.tar plans/legacy/execute/data/guest/default-0/tests/legacy/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/output.txt plans/ng/execute/data/guest/default-0/tests/*/*/*/output.txt"'
+    #     sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/output.tar ${{github.action_path}}/output.tar
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: Tests log
-        path: ${{github.action_path}}/log.txt
+    # - uses: actions/upload-artifact@v4
+    #   with:
+    #     name: Tests log
+    #     path: ${{github.action_path}}/log.txt
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: Tests results
-        path: ${{github.action_path}}/*.results.yaml
+    # - uses: actions/upload-artifact@v4
+    #   with:
+    #     name: Tests results
+    #     path: ${{github.action_path}}/*.results.yaml
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: Tests output
-        path: ${{github.action_path}}/output.tar
+    # - uses: actions/upload-artifact@v4
+    #   with:
+    #     name: Tests output
+    #     path: ${{github.action_path}}/output.tar
 
     - name: Get list of failed tests
       if: job.steps.run-tests.status == failure()
