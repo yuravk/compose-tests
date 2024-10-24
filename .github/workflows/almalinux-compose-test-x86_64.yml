@@ -10,6 +10,7 @@ on:
           default: '9'
           type: choice
           options:
+            - kitten-10
             - 9
             - 8
 
@@ -36,11 +37,28 @@ jobs:
 
     - name: Prepare stuff
       run: |
+        
+        case ${{ inputs.version_major }} in
+          8)
+            vm_box=almalinux/${{ inputs.version_major }}
+            dnf_crb_repo='PowerTools'
+            release_version=8
+            ;;
+          9)
+            vm_box=almalinux/${{ inputs.version_major }}
+            dnf_crb_repo='CRB'
+            release_version=9
+            ;;
+          kitten-10)
+            vm_box=lkhn/almalinux-kitten
+            dnf_crb_repo='CRB'
+            release_version=10
+            ;;
+        esac
+        # Release major version
+        echo "release_version=${release_version}" >> $GITHUB_ENV
+
         # Name of repository to enable (PowerTools/CRB)
-        dnf_crb_repo='PowerTools'
-        if [ "${{ inputs.version_major }}" = "9" ]; then
-          dnf_crb_repo='CRB'
-        fi
         if [ "x${{ inputs.pulp_repository }}" = "xtrue" ]; then
           # Lowercase the name for path in pulp's URL
           dnf_crb_repo="${dnf_crb_repo,,}"
@@ -52,7 +70,7 @@ jobs:
 
         # Use proper Vagrantfile and set ENV variable of config.vm.box
         cp -av ci/Vagrant/Vagrantfile ./
-        echo vm_box='almalinux/${{ inputs.version_major }}' > .env
+        echo vm_box=${vm_box} > .env
 
         # TMT tests run directory
         echo "tmt_run_dir=/var/tmp/tmt/run-001" >> $GITHUB_ENV
@@ -141,13 +159,27 @@ jobs:
         EOF
 
     - name: Run vagrant up
-      run: sudo vagrant up almalinux
+      run: sudo vagrant up --no-tty almalinux
 
     - name: Prepare test infrastructure
       run: |
-        sudo vagrant ssh almalinux -c 'sudo dnf -y install epel-release'
         enable_repo=${{ env.dnf_crb_repo }}
-        sudo vagrant ssh almalinux -c "sudo dnf install -y --enablerepo=${enable_repo,,} tmt"
+        case ${{ inputs.version_major }} in
+          kitten-10)
+            epel_release=https://archives.fedoraproject.org/pub/epel/10/Everything/x86_64/Packages/e/epel-release-10-2.el10_0.noarch.rpm
+            sudo vagrant ssh almalinux -c "sudo dnf -y install ${epel_release}"
+            sudo vagrant ssh almalinux -c "sudo dnf install -y --enablerepo=${enable_repo,,} python3-pip python3-pip rsync https://build.almalinux.org/pulp/content/builds/AlmaLinux-Kitten-10-x86_64-20670-br/Packages/b/beakerlib-1.29.2-2.el10.noarch.rpm"
+
+            sudo vagrant ssh almalinux -c "sudo pip install tmt"
+            ;;
+          *)
+            epel_release=epel-release
+            sudo vagrant ssh almalinux -c "sudo dnf -y install ${epel_release}"
+
+            sudo vagrant ssh almalinux -c "sudo dnf install -y --enablerepo=${enable_repo,,} tmt"
+            ;;
+        esac
+
 
     - name: Get compose-tests
       run: sudo vagrant ssh almalinux -c 'sudo cp -a /vagrant /compose-tests'
@@ -155,7 +187,7 @@ jobs:
     - name: Run tests
       id: run-tests
       continue-on-error: true
-      run: sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ inputs.version_major }} run --all provision --how=local'"
+      run: sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local'"
 
     - name: Print tests results
       run: |
@@ -215,7 +247,7 @@ jobs:
 
           # Re-run specific failed test
           if [ "${{ inputs.rerun_failed }}" = "true" ]; then
-            if sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ inputs.version_major }} run --all provision --how=local test --name ${test_failed}'"; then
+            if sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name ${test_failed}'"; then
               test_result="${test_failed} [re-run ✅]"
             else
               test_result="${test_failed} [re-run ❌]"
