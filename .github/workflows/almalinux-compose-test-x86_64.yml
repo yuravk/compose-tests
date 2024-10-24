@@ -195,7 +195,7 @@ jobs:
     - name: Run tests
       id: run-tests
       continue-on-error: true
-      run: sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name /tests/legacy/p_osbuild --name /tests/legacy/p_shadow-utils'"
+      run: sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name /tests/legacy/p_osbuild --name /tests/legacy/p_shadow-utils --name /tests/ng/tests/acl'"
 
     - name: Print tests results
       run: |
