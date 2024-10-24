@@ -156,8 +156,8 @@ jobs:
       run: |
         cat <<'EOF'>./yq.sh
         yq --no-doc '.[] | select(.result == "fail" or .result == "error") | .name' ${{ env.tmt_run_dir }}/plans/legacy/execute/results.yaml ${{ env.tmt_run_dir }}/plans/ng/execute/results.yaml > ${{ env.tmt_run_dir }}/tests_failed.txt || exit 1
-        echo "[Debug] $(cat ${{ env.tmt_run_dir }}/tests_failed.txt)"
-        echo "$(grep -B 1 'result: fail' ${{ env.tmt_run_dir }}/plans/legacy/execute/results.yaml ${{ env.tmt_run_dir }}/plans/ng/execute/results.yaml)"
+        echo "[Debug] failed tests:"
+        echo "$(cat ${{ env.tmt_run_dir }}/tests_failed.txt)"
         EOF
 
     - name: Run vagrant up
