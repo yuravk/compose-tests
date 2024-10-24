@@ -158,6 +158,12 @@ jobs:
         yq --no-doc '.[] | select(.result == "fail" or .result == "error") | .name' ${{ env.tmt_run_dir }}/plans/legacy/execute/results.yaml ${{ env.tmt_run_dir }}/plans/ng/execute/results.yaml > ${{ env.tmt_run_dir }}/tests_failed.txt || exit 1
         echo "[Debug] failed tests:"
         echo "$(cat ${{ env.tmt_run_dir }}/tests_failed.txt)"
+
+        yq_score=$(cat ${{ env.tmt_run_dir }}/tests_failed.txt | wc -l)
+        grep_score=$(grep -E '^ *result: fail|^ *result: error' ${{ env.tmt_run_dir }}/plans/legacy/execute/results.yaml ${{ env.tmt_run_dir }}/plans/ng/execute/results.yaml | wc -l)
+        if [ ${yq_score} -ne ${grep_score} ]; then
+          echo "[Warning] yq reported ${yq_score} fail/error don't match grep ${grep_score} score!"
+        fi
         EOF
 
     - name: Run vagrant up
