@@ -3,6 +3,8 @@
 
 t_Log "Running $0 - golang can run"
 
+lscpu
+
 go help
 t_CheckExitStatus $?
 
