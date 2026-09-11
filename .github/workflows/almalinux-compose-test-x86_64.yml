@@ -82,6 +82,7 @@ on:
 jobs:
   compose-test:
     name: AlmaLinux ${{ matrix.variant }}
+    timeout-minutes: 120
     runs-on: >-
       ${{
         github.repository_owner == 'AlmaLinux' &&
@@ -228,14 +229,22 @@ jobs:
 
     - name: Install the Vagrant libvirt Plugin
       run: |
-        sudo cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources."$(date +"%F")"
-        sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+        # Prefer the regional EC2 mirror over archive.ubuntu.com (throttled/unreachable
+        # from the runners at times), and make apt fail fast with retries.
+        imds_token=$(curl -sf --max-time 5 -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' || true)
+        region=$(curl -sf --max-time 5 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/placement/region || true)
+        if [ -n "$region" ]; then
+          sudo sed -i "s|https\?://archive.ubuntu.com/ubuntu|http://${region}.ec2.archive.ubuntu.com/ubuntu|" /etc/apt/sources.list.d/ubuntu.sources
+        fi
+        printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retries
         sudo apt-get -y update
         sudo apt-get -y install nfs-kernel-server
         sudo systemctl enable --now nfs-server
-        sudo apt-get -y build-dep ruby-libvirt
+        # Build dependencies for the ruby-libvirt gem (instead of `apt-get build-dep`,
+        # which needs deb-src indexes and pulls in the whole debhelper toolchain)
+        sudo apt-get -y install build-essential pkg-config ruby-dev
         sudo apt-get -y install ebtables dnsmasq-base
-        sudo apt-get -y install libxslt-dev libxml2-dev libvirt-dev zlib1g-dev ruby-dev
+        sudo apt-get -y install libxslt-dev libxml2-dev libvirt-dev zlib1g-dev
         sudo vagrant plugin install vagrant-libvirt
         sudo vagrant plugin install vagrant-scp
 
