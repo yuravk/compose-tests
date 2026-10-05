@@ -83,7 +83,7 @@ jobs:
 
   compose-test:
     name: AlmaLinux ${{ inputs.version_major }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
 
     env:
@@ -93,7 +93,7 @@ jobs:
       ssh_host: almalinux
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v6
@@ -557,17 +557,17 @@ jobs:
         REMOTE
         scp ${{ env.ssh_host }}:/tmp/output.tar "${{ env.artifacts_dir }}/output.tar" || true
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: Tests log
         path: ${{ env.artifacts_dir }}/log.txt
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: Tests results
         path: ${{ env.artifacts_dir }}/*.results.yaml
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: Tests output
         path: ${{ env.artifacts_dir }}/output.tar
@@ -659,7 +659,7 @@ jobs:
       # Always run so the run-page summary and the Mattermost text are produced
       # for both passing and failing runs.
       if: always()
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         result-encoding: string
         script: |
@@ -746,7 +746,7 @@ jobs:
         fi
 
     - name: Send notification to Mattermost
-      uses: mattermost/action-mattermost-notify@master
+      uses: mattermost/action-mattermost-notify@v2.1.0
       # Notify on both pass and fail; never fail the job on a notification error
       if: ${{ always() && inputs.notify_mattermost }}
       continue-on-error: true

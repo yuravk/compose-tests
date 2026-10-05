@@ -86,9 +86,9 @@ jobs:
     runs-on: >-
       ${{
         github.repository_owner == 'AlmaLinux' &&
-          format('runs-on={0}/family=c8i.8xlarge/image=ubuntu24-full-x64/nested-virt/volume=120gb', github.run_id)
+          format('runs-on={0}/family=c8i.8xlarge/image=ubuntu26-full-x64/nested-virt/volume=120gb', github.run_id)
         ||
-        'ubuntu-24.04'
+        'ubuntu-26.04'
       }}
     strategy:
       fail-fast: false
@@ -96,7 +96,7 @@ jobs:
         variant: ${{ fromJSON(format('["{0}"]', ( inputs.version_major == '10-kitten' && '10-kitten", "10-kitten-x86_64_v2' || ( inputs.version_major == '10' && '10", "10-x86_64_v2' || inputs.version_major ) ) )) }}
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Prepare stuff
       run: |
@@ -203,7 +203,7 @@ jobs:
     - name: Install KVM Packages and Start libvirt
       run: |
         sudo apt-get -y update
-        sudo apt-get -y install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils
+        sudo apt-get -y install qemu-system-x86 libvirt-daemon-system libvirt-clients bridge-utils
         sudo systemctl enable --now libvirtd
         sudo adduser "$(id -un)" libvirt
         sudo adduser "$(id -un)" kvm
@@ -215,11 +215,12 @@ jobs:
         sudo udevadm trigger --name-match=kvm
 
     - name: Tune libvirt
-      run: virsh list --all
+      # Group membership added by 'adduser' above isn't active in this runner session
+      run: sudo virsh list --all
 
     - name: Install Vagrant
       run: |
-        # Use Vagrant packages provided by Hashicorp as ubuntu-24.04 doesn't build ones
+        # Use Vagrant packages provided by Hashicorp as Ubuntu (24.04+) doesn't build ones
         wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
         sudo apt-get -y update
@@ -468,17 +469,17 @@ jobs:
         sudo vagrant ssh almalinux -c 'sudo sh -c "cd ${{ env.tmt_run_dir }}/; tar cf output.tar $( find . -name output.txt ) || true"'
         sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/output.tar ${{github.action_path}}/output.tar || true
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests log
         path: ${{github.action_path}}/log.txt
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests results
         path: ${{github.action_path}}/*.results.yaml
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests output
         path: ${{github.action_path}}/output.tar
@@ -560,7 +561,7 @@ jobs:
       # Always run so the run-page summary and the Mattermost text are produced
       # for both passing and failing runs.
       if: always()
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         result-encoding: string
         script: |
@@ -647,7 +648,7 @@ jobs:
         fi
 
     - name: Send notification to Mattermost
-      uses: mattermost/action-mattermost-notify@master
+      uses: mattermost/action-mattermost-notify@v2.1.0
       # Notify on both pass and fail; never fail the job on a notification error
       if: ${{ always() && inputs.notify_mattermost }}
       continue-on-error: true
