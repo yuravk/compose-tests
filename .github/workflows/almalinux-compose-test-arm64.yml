@@ -265,7 +265,7 @@ jobs:
             --instance-initiated-shutdown-behavior terminate \
             --user-data file:///tmp/userdata.sh \
             --block-device-mappings "[{\"DeviceName\":\"${root_dev}\",\"Ebs\":{\"VolumeSize\":30,\"VolumeType\":\"gp3\",\"DeleteOnTermination\":true}}]" \
-            --tag-specifications 'ResourceType=instance,Tags=[{Key=Project,Value=GitHub Actions Self-hosted Runners},{Key=Name,Value=compose-test-arm64-${{ github.run_id }}}]' \
+            --tag-specifications 'ResourceType=instance,Tags=[{Key=Project,Value=GitHub Actions Self-hosted Runners},{Key=Name,Value=compose-test-arm64-${{ github.run_id }}-${{ inputs.version_major }}}]' \
             --query 'Instances[0].InstanceId' --output text 2>/tmp/run-instances.err) && break
           instance_id=
           if grep -q 'InsufficientInstanceCapacity' /tmp/run-instances.err; then
@@ -559,17 +559,17 @@ jobs:
 
     - uses: actions/upload-artifact@v7
       with:
-        name: Tests log
+        name: ${{ inputs.version_major }}-aarch64 tests log
         path: ${{ env.artifacts_dir }}/log.txt
 
     - uses: actions/upload-artifact@v7
       with:
-        name: Tests results
+        name: ${{ inputs.version_major }}-aarch64 tests results
         path: ${{ env.artifacts_dir }}/*.results.yaml
 
     - uses: actions/upload-artifact@v7
       with:
-        name: Tests output
+        name: ${{ inputs.version_major }}-aarch64 tests output
         path: ${{ env.artifacts_dir }}/output.tar
 
     - name: Evaluate test results
