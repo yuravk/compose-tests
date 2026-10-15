@@ -1,0 +1,138 @@
+name: almalinux-compose-test-all
+
+run-name: >-
+  AlmaLinux
+  ${{ inputs.version_10_kitten && '10-kitten' || '' }}${{ inputs.version_10 && inputs.version_10_kitten && ', ' || '' }}${{ inputs.version_10 && '10' || '' }}${{ inputs.version_9 && (inputs.version_10_kitten || inputs.version_10) && ', ' || '' }}${{ inputs.version_9 && '9' || '' }}${{ inputs.version_8 && (inputs.version_10_kitten || inputs.version_10 || inputs.version_9) && ', ' || '' }}${{ inputs.version_8 && '8' || '' }}
+  compose test
+  (${{ inputs.run_x86_64 && 'x86_64' || '' }}${{ inputs.run_x86_64 && inputs.run_arm64 && ' + ' || '' }}${{ inputs.run_arm64 && 'aarch64' || '' }})${{ inputs.pungi_repository && ' +pungi' || '' }}${{ inputs.pulp_repository && ' +pulp' || '' }}
+
+# A single dispatch runs the compose tests of every selected AlmaLinux
+# version on x86_64 (incl. x86_64_v2) and aarch64, as parallel child jobs via
+# the per-arch reusable workflows. 'almalinux-compose-test' runs one version,
+# the per-arch workflows one version on one arch.
+
+on:
+  workflow_dispatch:
+    inputs:
+
+      version_10_kitten:
+        description: 'AlmaLinux 10 Kitten'
+        type: boolean
+        default: false
+
+      version_10:
+        description: 'AlmaLinux 10'
+        type: boolean
+        default: true
+
+      version_9:
+        description: 'AlmaLinux 9'
+        type: boolean
+        default: true
+
+      version_8:
+        description: 'AlmaLinux 8'
+        type: boolean
+        default: true
+
+      run_x86_64:
+        description: 'Run x86_64 (incl. x86_64_v2)'
+        type: boolean
+        default: true
+
+      run_arm64:
+        description: 'Run aarch64'
+        type: boolean
+        default: true
+
+      pungi_repository:
+        description: 'Add pungi repositories'
+        type: boolean
+
+      pulp_repository:
+        description: 'Add pulp repositories'
+        type: boolean
+        default: true
+
+      testing_repository:
+        description: 'Add testing repository'
+        type: boolean
+        default: false
+
+      disable_default_repos:
+        description: 'Disable system default repositories'
+        type: boolean
+        default: false
+
+      rerun_failed:
+        description: 'Re-run failed tests'
+        type: boolean
+        default: true
+
+      notify_mattermost:
+        description: 'Send results notification to Mattermost'
+        type: boolean
+        default: true
+
+jobs:
+
+  # The ticked versions as a JSON list for the matrices below
+  versions:
+    runs-on: ubuntu-24.04
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+    - name: List the selected versions
+      id: list
+      env:
+        selected: >-
+          ${{ inputs.version_10_kitten && '10-kitten' || '' }}
+          ${{ inputs.version_10 && '10' || '' }}
+          ${{ inputs.version_9 && '9' || '' }}
+          ${{ inputs.version_8 && '8' || '' }}
+      run: |
+        read -ra versions <<< "${selected}"
+        if [ "${#versions[@]}" -eq 0 ]; then
+          echo "::error::No AlmaLinux version selected"
+          exit 1
+        fi
+        list=$(jq -cn '$ARGS.positional' --args "${versions[@]}")
+        echo "[Debug] versions: ${list}"
+        echo "list=${list}" >> "$GITHUB_OUTPUT"
+
+  x86_64:
+    needs: versions
+    if: ${{ inputs.run_x86_64 }}
+    strategy:
+      # One version failing must not cancel the others
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.versions.outputs.list) }}
+    uses: ./.github/workflows/almalinux-compose-test-x86_64.yml
+    with:
+      version_major: ${{ matrix.version }}
+      pungi_repository: ${{ inputs.pungi_repository }}
+      pulp_repository: ${{ inputs.pulp_repository }}
+      testing_repository: ${{ inputs.testing_repository }}
+      disable_default_repos: ${{ inputs.disable_default_repos }}
+      rerun_failed: ${{ inputs.rerun_failed }}
+      notify_mattermost: ${{ inputs.notify_mattermost }}
+    secrets: inherit
+
+  arm64:
+    needs: versions
+    if: ${{ inputs.run_arm64 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.versions.outputs.list) }}
+    uses: ./.github/workflows/almalinux-compose-test-arm64.yml
+    with:
+      version_major: ${{ matrix.version }}
+      pungi_repository: ${{ inputs.pungi_repository }}
+      pulp_repository: ${{ inputs.pulp_repository }}
+      testing_repository: ${{ inputs.testing_repository }}
+      disable_default_repos: ${{ inputs.disable_default_repos }}
+      rerun_failed: ${{ inputs.rerun_failed }}
+      notify_mattermost: ${{ inputs.notify_mattermost }}
+    secrets: inherit
