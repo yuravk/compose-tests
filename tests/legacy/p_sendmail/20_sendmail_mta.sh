@@ -16,17 +16,26 @@ if [ $MTA_ACCEPT == 0 ]
   t_Log 'Mail has been queued successfully'
 fi
 
-sleep 1
+regex='250\ 2\.0\.0\ ([0-9A-Za-z]*)\ Message\ accepted\ for\ delivery'
+if [[ $mail =~ $regex ]]
+  then
+  # delivery and its log line can take a few seconds (rsyslog may have
+  # just been started), so poll instead of a fixed sleep
+  for _ in $(seq 1 30); do
+    sleep 1
+    if [ "$centos_ver" -eq "8" ]; then
+      journalctl -u sendmail | egrep -q "${BASH_REMATCH[1]}\:.*stat\=Sent"
+    else
+      egrep -q "${BASH_REMATCH[1]}\:.*stat\=Sent" /var/log/maillog
+    fi
+    DELIVERED=$?
+    [ $DELIVERED == 0 ] && break
+  done
+fi
 
 if [ "$centos_ver" -eq "8" ]; then
   t_Log "Dumping journalctl to /var/log/maillog"
   journalctl -u sendmail >> /var/log/maillog
-fi
-regex='250\ 2\.0\.0\ ([0-9A-Za-z]*)\ Message\ accepted\ for\ delivery'
-if [[ $mail =~ $regex ]]
-  then
-  egrep -q "${BASH_REMATCH[1]}\:.*stat\=Sent" /var/log/maillog
-  DELIVERED=$?
 fi
 
 if ([ $MTA_ACCEPT == 0  ] && [ $DELIVERED == 0 ])

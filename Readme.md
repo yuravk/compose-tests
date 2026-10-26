@@ -69,6 +69,22 @@ Test outputs will be in the default temp `tmt` folder, e.g. `/var/tmp/tmt`. If y
         summary: 1 test passed
 ```
 
+A test must not rely on what other tests did before it (packages installed, services started, files created): the CI splits the tests between several guests, so the tests that run before yours differ from run to run. Install and start what your test needs in the test itself.
+
+# Running in Parallel in CI
+
+The tests run one at a time, so the AlmaLinux CI workflows split them between 4 guests (Vagrant VMs on x86_64, EC2 instances on aarch64) that run in parallel. `ci/shard.py` balances the shards by the test durations of the CI variant in `ci/test-durations/<variant>.txt` (e.g. `9`, `10-x86_64_v2`, `9-aarch64`); a test that variant doesn't know counts as its longest duration in the other variants. Every shard also runs `/tests/legacy/0_common` first. To see the shards of a variant:
+
+```sh
+tmt -c distro=centos-stream-9 tests ls --enabled | ci/shard.py split --shards 4 --variant 9
+```
+
+A new test counts as 15 seconds until the durations know it, and a new variant gets the longest durations of all the variants until it has its own file. Refresh them from the `<variant> tests results` artifacts of recent CI runs, as `gh run download <run id> -p '*tests results'` saves them (needs PyYAML):
+
+```sh
+ci/shard.py durations */*.results.yaml
+```
+
 # Adding an External Test
 
 Create a `.fmf` file within `plans/external/` named after the package, and follow the `tmt` documentation how to import tmt tests from git (see the `discover` step [Example](https://tmt.readthedocs.io/en/stable/examples.html#plans), and [Specs](https://tmt.readthedocs.io/en/stable/spec/plans.html#spec-plans-discover) ). You can follow the `plans/external/podman.fmf` example.

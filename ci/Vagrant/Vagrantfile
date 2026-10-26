@@ -3,13 +3,15 @@ Vagrant.configure("2") do |config|
     config.env.enable
     config.vm.box = ENV['vm_box']
 
-    config.vm.define 'almalinux'
+    # One guest per test shard: almalinux-0 .. almalinux-N-1 (N from 'shards' in .env).
+    shards = (ENV['shards'] || '1').to_i
+    (0...shards).each { |i| config.vm.define "almalinux-#{i}" }
 
-    # Size the guest from host resources (this Vagrantfile is evaluated on the Linux host).
+    # Split host resources between the guests (this Vagrantfile is evaluated on the Linux host).
     host_cpus = `nproc`.to_i
     host_ram  = `awk '/^MemTotal:/ {print $2}' /proc/meminfo`.to_i / 1024  # MiB (MemTotal is kB)
-    guest_cpus = [host_cpus - 2, 1].max                                   # leave 2 cores for the host
-    guest_ram  = [(host_ram * 0.75).to_i, 1024].max                       # 75% of host RAM, min 1 GiB
+    guest_cpus = [(host_cpus - 2) / shards, 1].max                        # leave 2 cores for the host
+    guest_ram  = [(host_ram * 0.75 / shards).to_i, 1024].max              # 75% of host RAM, min 1 GiB
 
     config.vm.provider "libvirt" do |v|
         v.memory = guest_ram

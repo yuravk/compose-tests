@@ -1,0 +1,6 @@
+summary: comps.xml groups depsolve, from 0_common
+description: |
+    Depsolves every comps group. Kept out of 0_common, which the CI runs
+    on every guest, so that it runs once.
+test: ./test.sh
+duration: 60m
