@@ -22,4 +22,7 @@ if [[ $centos_stream == "no" ]]; then
     exit 0
 fi
 
-t_InstallPackage python38-mod_wsgi
+# Also httpd (mod_wsgi pulls in only httpd-core, which has no httpd.service),
+# mod_ssl and curl for the https check: don't rely on an earlier test having
+# installed them
+t_InstallPackage python38-mod_wsgi httpd mod_ssl curl

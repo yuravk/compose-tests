@@ -83,6 +83,11 @@ jobs:
   compose-test:
     name: AlmaLinux ${{ matrix.variant }}
     timeout-minutes: 120
+    env:
+      # Number of guests the tests are split between, run in parallel
+      shards: 4
+      # Vagrant plugins the jobs need (see the Vagrantfile and the steps below)
+      vagrant_plugins: vagrant-reload vagrant-env vagrant-libvirt vagrant-scp
     runs-on: >-
       ${{
         github.repository_owner == 'AlmaLinux' &&
@@ -182,12 +187,21 @@ jobs:
         # Use proper Vagrantfile and set ENV variable of config.vm.box
         cp -av ci/Vagrant/Vagrantfile ./
         echo vm_box=${vm_box} > .env
+        echo shards=${shards} >> .env
+
+        # Vagrant guests, one per shard of the tests
+        echo "guests=$(seq -f 'almalinux-%g' -s ' ' 0 $(( shards - 1 )))" >> $GITHUB_ENV
         if [ -n "${vagrant_cpu_model:-}" ]; then
           echo "vagrant_cpu_model=${vagrant_cpu_model}" >> .env
         fi
 
         # TMT tests run directory
         echo "tmt_run_dir=/var/tmp/tmt/run-001" >> $GITHUB_ENV
+
+        # Local directory on the runner to gather artifacts pulled from the guests
+        artifacts_dir="${{ github.workspace }}/artifacts"
+        mkdir -p "${artifacts_dir}"
+        echo "artifacts_dir=${artifacts_dir}" >> $GITHUB_ENV
 
         # For nvidia drivers tests
         case ${{ inputs.version_major }} in
@@ -200,11 +214,33 @@ jobs:
         esac
         echo "nvidia=${nvidia}" >> $GITHUB_ENV
 
-    - name: Install KVM Packages and Start libvirt
+    - name: Configure apt
       run: |
+        # Prefer the regional EC2 mirror over archive.ubuntu.com (throttled/unreachable
+        # from the runners at times), and make apt fail fast with retries.
+        imds_token=$(curl -sf --max-time 5 -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' || true)
+        region=$(curl -sf --max-time 5 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/placement/region || true)
+        if [ -n "$region" ]; then
+          sudo sed -i "s|https\?://archive.ubuntu.com/ubuntu|http://${region}.ec2.archive.ubuntu.com/ubuntu|" /etc/apt/sources.list.d/ubuntu.sources
+        fi
+        printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retries
+
+        # Use Vagrant packages provided by Hashicorp as Ubuntu (24.04+) doesn't build ones
+        wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+    - name: Install KVM Packages, Vagrant and Start libvirt
+      run: |
+        # All in one go: a single index update and dependency resolution.
+        # Build dependencies for the ruby-libvirt gem of the vagrant-libvirt plugin
+        # (instead of `apt-get build-dep`, which needs deb-src indexes and pulls in
+        # the whole debhelper toolchain).
         sudo apt-get -y update
-        sudo apt-get -y install qemu-system-x86 libvirt-daemon-system libvirt-clients bridge-utils
+        sudo apt-get -y install qemu-system-x86 libvirt-daemon-system libvirt-clients bridge-utils \
+          vagrant nfs-kernel-server ebtables dnsmasq-base \
+          build-essential pkg-config ruby-dev libxslt-dev libxml2-dev libvirt-dev zlib1g-dev
         sudo systemctl enable --now libvirtd
+        sudo systemctl enable --now nfs-server
         sudo adduser "$(id -un)" libvirt
         sudo adduser "$(id -un)" kvm
 
@@ -218,36 +254,51 @@ jobs:
       # Group membership added by 'adduser' above isn't active in this runner session
       run: sudo virsh list --all
 
-    - name: Install Vagrant
+    - name: Get the Vagrant plugins cache key
+      id: vagrant-plugins
       run: |
-        # Use Vagrant packages provided by Hashicorp as Ubuntu (24.04+) doesn't build ones
-        wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-        sudo apt-get -y update
-        sudo apt-get -y install vagrant
-        sudo vagrant plugin install vagrant-reload
-        sudo vagrant plugin install vagrant-env
+        # The plugins build native extensions against Vagrant's embedded Ruby
+        # and the libvirt and libxml2 of the runner image
+        libs=$(dpkg-query -W -f='${Package}=${Version}\n' libvirt-dev libxml2-dev | sha256sum | cut -c1-16)
+        echo "key=vagrant-plugins-$(. /etc/os-release; echo ${ID}${VERSION_ID})-$(uname -m)-$(vagrant --version | awk '{print $2}')-${libs}-$(echo ${vagrant_plugins} | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
-    - name: Install the Vagrant libvirt Plugin
+    - name: Restore the Vagrant plugins
+      id: vagrant-plugins-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/vagrant-plugins
+        key: ${{ steps.vagrant-plugins.outputs.key }}
+
+    - name: Install the Vagrant plugins
       run: |
-        # Prefer the regional EC2 mirror over archive.ubuntu.com (throttled/unreachable
-        # from the runners at times), and make apt fail fast with retries.
-        imds_token=$(curl -sf --max-time 5 -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' || true)
-        region=$(curl -sf --max-time 5 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/placement/region || true)
-        if [ -n "$region" ]; then
-          sudo sed -i "s|https\?://archive.ubuntu.com/ubuntu|http://${region}.ec2.archive.ubuntu.com/ubuntu|" /etc/apt/sources.list.d/ubuntu.sources
+        cache="${{ runner.temp }}/vagrant-plugins"
+        if [ -f "${cache}/plugins.json" ]; then
+          echo "[Debug] Using the cached Vagrant plugins"
+          sudo mkdir -p /root/.vagrant.d
+          sudo cp -a "${cache}/gems" "${cache}/plugins.json" /root/.vagrant.d/
+          sudo chown -R root:root /root/.vagrant.d
         fi
-        printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retries
-        sudo apt-get -y update
-        sudo apt-get -y install nfs-kernel-server
-        sudo systemctl enable --now nfs-server
-        # Build dependencies for the ruby-libvirt gem (instead of `apt-get build-dep`,
-        # which needs deb-src indexes and pulls in the whole debhelper toolchain)
-        sudo apt-get -y install build-essential pkg-config ruby-dev
-        sudo apt-get -y install ebtables dnsmasq-base
-        sudo apt-get -y install libxslt-dev libxml2-dev libvirt-dev zlib1g-dev
-        sudo vagrant plugin install vagrant-libvirt
-        sudo vagrant plugin install vagrant-scp
+        installed=$(sudo vagrant plugin list 2>/dev/null || true)
+        echo "${installed}"
+        missing=
+        for plugin in ${vagrant_plugins}; do
+          echo "${installed}" | grep -q "^${plugin} " || missing="${missing} ${plugin}"
+        done
+        if [ -n "${missing}" ]; then
+          # In one command: each 'vagrant plugin install' resolves and builds
+          # the native extensions of all the plugins again
+          sudo vagrant plugin install ${missing}
+          rm -rf "${cache}"; mkdir -p "${cache}"
+          sudo cp -a /root/.vagrant.d/gems /root/.vagrant.d/plugins.json "${cache}/"
+          sudo chown -R "$(id -u):$(id -g)" "${cache}"
+        fi
+
+    - name: Save the Vagrant plugins
+      if: steps.vagrant-plugins-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}/vagrant-plugins
+        key: ${{ steps.vagrant-plugins.outputs.key }}
 
     - name: Create AlmaLinux pungi repository
       if: inputs.pungi_repository
@@ -375,17 +426,59 @@ jobs:
         echo "[Debug] $(tr '\n' ' ' < ${run_dir}/tests_stats.txt)"
         EOF
 
+    - name: Create test infrastructure script
+      run: |
+        # Runs inside every guest (synced as /vagrant): install tmt and the
+        # test dependencies.
+        cat <<'EOF'>./ct-prepare.sh
+        enable_repo=${{ env.dnf_crb_repo }}
+        dnf_opts="--enablerepo=${enable_repo,,}"
+        if [ "${{ inputs.disable_default_repos }}" = "true" ]; then
+          # Disable all enabled system repositories
+          for enabled_repo in $(dnf repolist --enabled | awk '/repo id/ {A=1; next} A {print $1}' | grep -v -E 'pungi|pulp'); do
+            echo "[Debug] Disable '${enabled_repo}' repository"
+            dnf config-manager --set-disabled ${enabled_repo}
+          done
+          dnf_opts=
+        fi
+        case ${{ matrix.variant }} in
+          10-kitten*)
+            dnf install -y ${dnf_opts} epel-release almalinux-kitten-release-devel
+            [ "${{ inputs.disable_default_repos }}" = "false" ] && \
+              dnf_opts="${dnf_opts} --enablerepo=devel"
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
+            ;;
+          10*)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
+            ;;
+          9)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} tmt initscripts-service
+            ;;
+          *)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} tmt tmt-report-html
+            ;;
+        esac
+        export PATH=$PATH:/usr/local/bin
+        echo "[Debug] tmt version: $(tmt --version)"
+        EOF
+
     - name: Run vagrant up
       run: |
         # TODO to solve "undefined method `exists?'" error
         ruby_version=$(sudo /opt/vagrant/embedded/bin/ruby -e 'print "#{ RUBY_VERSION }"')
         sudo find /root/.vagrant.d/gems/${ruby_version}/gems -name dotenv.rb -exec sed -i 's/exists?/exist?/g' {} \;
 
-        sudo vagrant up --no-tty almalinux
+        # Brings up all the guests in parallel
+        sudo vagrant up --no-tty
 
     - name: Get system release
       run: |
-        system_release=$(sudo vagrant ssh almalinux -c "cat /etc/almalinux-release")
+        system_release=$(sudo vagrant ssh almalinux-0 -c "cat /etc/almalinux-release")
         echo "system_release=${system_release}" >> $GITHUB_ENV
 
     - name: Add testing repository
@@ -393,47 +486,26 @@ jobs:
       # Kitten has no testing repository, so skip it there.
       if: inputs.testing_repository && !inputs.pulp_repository && !startsWith(matrix.variant, '10-kitten')
       run: |
-        sudo vagrant ssh almalinux -c "sudo dnf install -y almalinux-release-testing"
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo dnf install -y almalinux-release-testing"'
 
     - name: Prepare test infrastructure
-      run: |
-        enable_repo=${{ env.dnf_crb_repo }}
-        dnf_opts="--enablerepo=${enable_repo,,}"
-        if [ "${{ inputs.disable_default_repos }}" = "true" ]; then
-          # Disable all enabled system repositories
-          for enabled_repo in $(sudo vagrant ssh almalinux -c "sudo dnf repolist --enabled" 2>/dev/null | awk '/repo id/ {A=1; next} A {print $1}' | grep -v -E 'pungi|pulp'); do
-            echo "[Debug] Disable '${enabled_repo}' repository"
-            sudo vagrant ssh almalinux -c "sudo dnf config-manager --set-disabled ${enabled_repo}"
-          done
-          dnf_opts=
-        fi
-        case ${{ matrix.variant }} in
-          10-kitten*)
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} epel-release almalinux-kitten-release-devel"
-            [ "${{ inputs.disable_default_repos }}" = "false" ] && \
-              dnf_opts="${dnf_opts} --enablerepo=devel"
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service"
-            sudo vagrant ssh almalinux -c "sudo sh -c  'export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt'"
-            ;;
-          10*)
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} epel-release"
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service"
-            sudo vagrant ssh almalinux -c "sudo sh -c  'export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt'"
-            ;;
-          9)
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} epel-release"
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} tmt initscripts-service"
-            ;;
-          *)
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} epel-release"
-            sudo vagrant ssh almalinux -c "sudo dnf install -y ${dnf_opts} tmt tmt-report-html"
-            ;;
-        esac
-
-        echo "[Debug] $(sudo vagrant ssh almalinux -c 'export PATH=$PATH:/usr/local/bin; tmt --version')"
+      run: ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo bash -e /vagrant/ct-prepare.sh"'
 
     - name: Get compose-tests
-      run: sudo vagrant ssh almalinux -c 'sudo cp -a /vagrant /compose-tests'
+      run: ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo cp -a /vagrant /compose-tests"'
+
+    - name: Split tests between the guests
+      run: |
+        # Enabled tests for this distro, split by duration (ci/test-durations/)
+        # into one tmt 'test --name' regex per guest, pushed to /tmp/ct-shard.regex
+        sudo vagrant ssh almalinux-0 -c "sudo sh -c 'export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt -c distro=centos-stream-${{ env.release_version }} tests ls --enabled'" \
+          | tr -d '\r' | grep '^/' > ./tests_enabled.txt
+        python3 ci/shard.py split --shards ${shards} --variant '${{ matrix.variant }}' < ./tests_enabled.txt > ./shards.txt
+        for guest in ${guests}; do
+          read -r regex <&3
+          echo "${regex}" > ./ct-shard.regex
+          sudo vagrant scp ./ct-shard.regex ${guest}:/tmp/ct-shard.regex
+        done 3< ./shards.txt
 
     - name: Run tests
       id: run-tests
@@ -443,22 +515,38 @@ jobs:
         # real exit code so a later step can tell a clean run (tmt 0=all pass,
         # 1=some failed) from an aborted one (2 = tmt error, 255 = ssh/VM died).
         set +e
-        sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local'"
-        rc=$?
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo sh -c '"'"'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name \"\$(cat /tmp/ct-shard.regex)\"'"'"'"; echo $? > ./tmt_rc.$guest'
+        # The worst exit code of the guests: one outside 0/1 (2 = tmt error,
+        # 255 = ssh/VM died) wins over 1 (some failed) over 0 (all pass).
+        rc=0
+        for guest in ${guests}; do
+          guest_rc=$(cat ./tmt_rc.${guest} 2>/dev/null || echo 255)
+          echo "[Debug] ${guest} tmt exit code: ${guest_rc}"
+          case "${guest_rc}" in
+            0) ;;
+            1) [ "${rc}" = 0 ] && rc=1 ;;
+            *) rc=${guest_rc} ;;
+          esac
+        done
         echo "[Debug] tmt exit code: ${rc}"
         echo "tmt_rc=${rc}" >> "$GITHUB_OUTPUT"
         exit ${rc}
 
     - name: Print tests results
       run: |
-        sudo vagrant ssh almalinux -c "sudo find ${{ env.tmt_run_dir }}/plans/*/execute -name results.yaml -exec cat {} \;"
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/plans/legacy/execute/results.yaml ${{github.action_path}}/legacy.results.yaml || true
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/plans/ng/execute/results.yaml ${{github.action_path}}/ng.results.yaml || true
+        for guest in ${guests}; do
+          sudo vagrant ssh ${guest} -c "sudo find ${{ env.tmt_run_dir }}/plans/*/execute -name results.yaml -exec cat {} \;"
+          for plan in legacy ng; do
+            sudo vagrant scp ${guest}:${{ env.tmt_run_dir }}/plans/${plan}/execute/results.yaml "${artifacts_dir}/${guest}.${plan}.results.yaml" || true
+          done
+        done
 
     - name: Print tests log
       run: |
-        sudo vagrant ssh almalinux -c "sudo cat ${{ env.tmt_run_dir }}/log.txt"
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/log.txt ${{github.action_path}}/log.txt
+        for guest in ${guests}; do
+          sudo vagrant ssh ${guest} -c "sudo cat ${{ env.tmt_run_dir }}/log.txt"
+          sudo vagrant scp ${guest}:${{ env.tmt_run_dir }}/log.txt "${artifacts_dir}/${guest}.log.txt" || true
+        done
 
     - name: Collect tests output
       run: |
@@ -466,40 +554,59 @@ jobs:
         # a partial run (e.g. an ng-plan prepare failure that leaves no ng output)
         # doesn't fail here. The run failure itself is reported by the completeness
         # gate ('Fail if the test run did not complete'), not by this step.
-        sudo vagrant ssh almalinux -c 'sudo sh -c "cd ${{ env.tmt_run_dir }}/; tar cf output.tar $( find . -name output.txt ) || true"'
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/output.tar ${{github.action_path}}/output.tar || true
+        for guest in ${guests}; do
+          # single-quoted for the inner sh, so find runs as root in the run dir
+          # and not in the vagrant user's login shell
+          sudo vagrant ssh ${guest} -c "sudo sh -c 'cd ${{ env.tmt_run_dir }}/ && find . -name output.txt -print0 | tar cf output.tar --null -T -'" || true
+          sudo vagrant scp ${guest}:${{ env.tmt_run_dir }}/output.tar "${artifacts_dir}/${guest}.output.tar" || true
+        done
 
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests log
-        path: ${{github.action_path}}/log.txt
+        path: ${{ env.artifacts_dir }}/*.log.txt
 
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests results
-        path: ${{github.action_path}}/*.results.yaml
+        path: ${{ env.artifacts_dir }}/*.results.yaml
 
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ matrix.variant }} tests output
-        path: ${{github.action_path}}/output.tar
+        path: ${{ env.artifacts_dir }}/*.output.tar
 
     - name: Evaluate test results
       id: eval
       if: always()
       run: |
         set +e
-        # Install 'yq' in the VM, tally results, and build the failed-tests list.
-        sudo vagrant ssh almalinux -c 'sudo dnf -y -q install wget' || true
-        sudo vagrant ssh almalinux -c 'sudo wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq' || true
-        sudo vagrant ssh almalinux -c 'sudo chmod +x /usr/bin/yq' || true
-        sudo vagrant ssh almalinux -c "sudo sh -c 'chmod +x /vagrant/ct-eval.sh; /vagrant/ct-eval.sh'" || true
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/tests_failed.txt ./tests_failed.txt || true
-        sudo vagrant scp almalinux:${{ env.tmt_run_dir }}/tests_stats.txt  ./tests_stats.txt  || true
-        sudo chmod a+r ./tests_failed.txt ./tests_stats.txt 2>/dev/null || true
+        # Install 'yq' in the guests, tally results, and build the failed-tests list.
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo dnf -y -q install wget"' || true
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq"' || true
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo chmod +x /usr/bin/yq"' || true
+        ci/each-guest.sh 'sudo vagrant ssh $guest -c "sudo sh -c '"'"'chmod +x /vagrant/ct-eval.sh; /vagrant/ct-eval.sh'"'"'"' || true
 
-        total=0; passed=0; failed=0
-        [ -f ./tests_stats.txt ] && source ./tests_stats.txt
+        # Sum up the guests; the failed-tests list gets '<guest> <test>' lines
+        # so that a failed test is re-run on the guest it failed on. A guest
+        # with no results at all (every shard runs at least 0_common) means
+        # its run was aborted.
+        total=0; passed=0; failed=0; empty_guest=false
+        : > ./tests_failed.txt
+        for guest in ${guests}; do
+          sudo vagrant scp ${guest}:${{ env.tmt_run_dir }}/tests_failed.txt ./tests_failed.${guest}.txt || true
+          sudo vagrant scp ${guest}:${{ env.tmt_run_dir }}/tests_stats.txt  ./tests_stats.${guest}.txt  || true
+          sudo chmod a+r ./tests_failed.${guest}.txt ./tests_stats.${guest}.txt 2>/dev/null || true
+          sed "s|^|${guest} |" ./tests_failed.${guest}.txt >> ./tests_failed.txt 2>/dev/null
+          guest_total=0
+          if [ -f ./tests_stats.${guest}.txt ]; then
+            guest_total=$(sed -n 's/^total=//p' ./tests_stats.${guest}.txt)
+            passed=$(( passed + $(sed -n 's/^passed=//p' ./tests_stats.${guest}.txt) ))
+            failed=$(( failed + $(sed -n 's/^failed=//p' ./tests_stats.${guest}.txt) ))
+          fi
+          total=$(( total + guest_total ))
+          [ "${guest_total}" -eq 0 ] && empty_guest=true
+        done
         echo "total=${total}"   >> "$GITHUB_OUTPUT"
         echo "passed=${passed}" >> "$GITHUB_OUTPUT"
         echo "failed=${failed}" >> "$GITHUB_OUTPUT"
@@ -511,6 +618,7 @@ jobs:
         incomplete=false
         case "${rc}" in 0|1) ;; *) incomplete=true ;; esac
         [ "${total}" -eq 0 ] && incomplete=true
+        [ "${empty_guest}" = true ] && incomplete=true
         echo "incomplete=${incomplete}" >> "$GITHUB_OUTPUT"
 
         echo "[Debug] total=${total} passed=${passed} failed=${failed} tmt_rc=${rc} incomplete=${incomplete}"
@@ -524,16 +632,19 @@ jobs:
         rerun_results=
         exit_code=0
 
-        # Read failed tests list
-        for test_failed in $(cat ./tests_failed.txt | xargs); do
-          echo "[Debug] Re-run '${test_failed}'"
+        # Read failed tests list: '<guest> <test>' lines
+        while read -r guest test_failed; do
+          [ -n "${test_failed}" ] || continue
+          echo "[Debug] Re-run '${test_failed}' on ${guest}"
+          # Exact name as a tmt regex, '+' and '.' made literal (p_gcc-c++)
+          test_regex="^$(echo "${test_failed}" | sed 's/[+.]/[&]/g')\$"
 
           # Include failed test name into resiults summary
           test_result="${test_failed}"
 
-          # Re-run specific failed test
+          # Re-run specific failed test, on the guest it failed on
           if [ "${{ inputs.rerun_failed }}" = "true" ]; then
-            if sudo vagrant ssh almalinux -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name ${test_failed}'"; then
+            if sudo vagrant ssh ${guest} -c "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name \"${test_regex}\"'" < /dev/null; then
               test_result="${test_failed} [re-run ✅]"
             else
               test_result="${test_failed} [re-run ❌]"
@@ -547,7 +658,7 @@ jobs:
           # Format test results in list format: 'item1', 'item2', ...
           [ "x${rerun_results}" = "x" ] && rerun_results="'${test_result}'" || rerun_results="${rerun_results}, '${test_result}'"
 
-        done
+        done < ./tests_failed.txt
 
         # Export header and test results
         [ "x${rerun_results}" = "x" ] && summary_header="✅ All tests pass." || summary_header="❌ Failed tests:"

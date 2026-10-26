@@ -89,8 +89,8 @@ jobs:
     env:
       # Default SSH user of the official AlmaLinux AMIs
       ssh_user: ec2-user
-      # SSH alias configured in ~/.ssh/config (see 'Wait for SSH' step)
-      ssh_host: almalinux
+      # Number of instances the tests are split between, run in parallel
+      shards: 4
 
     steps:
     - uses: actions/checkout@v7
@@ -162,6 +162,10 @@ jobs:
         # TMT tests run directory (on the instance)
         echo "tmt_run_dir=/var/tmp/tmt/run-001" >> $GITHUB_ENV
 
+        # SSH aliases of the instances, one per shard of the tests,
+        # configured in ~/.ssh/config (see 'Wait for SSH' step)
+        echo "guests=$(seq -f 'almalinux-%g' -s ' ' 0 $(( shards - 1 )))" >> $GITHUB_ENV
+
         # Local directory on the runner to gather artifacts pulled from the instance
         artifacts_dir="${{ github.workspace }}/artifacts"
         mkdir -p "${artifacts_dir}"
@@ -201,7 +205,7 @@ jobs:
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
         ssh-keygen -t ed25519 -f ~/.ssh/id_ec2 -N '' -q
 
-    - name: Launch EC2 instance
+    - name: Launch EC2 instances
       run: |
         # Match the instance's root device name so the size override is applied to it
         root_dev=$(aws ec2 describe-images --image-ids ${{ env.AMI_ID }} \
@@ -253,10 +257,12 @@ jobs:
         # run out (InsufficientInstanceCapacity). Try a few equivalent Graviton
         # types in order, falling through only on a capacity error; any other
         # error fails immediately. All are 4 vCPU (c7g/m7g/c6g = 8GB, t4g = 16GB).
-        instance_id=
+        # One instance per shard, all of the same type.
+        instance_ids=
         for itype in c7g.xlarge m7g.xlarge c6g.xlarge t4g.xlarge; do
-          echo "[Debug] Trying instance type ${itype}"
-          instance_id=$(aws ec2 run-instances \
+          echo "[Debug] Trying ${shards} instances of type ${itype}"
+          instance_ids=$(aws ec2 run-instances \
+            --count ${shards} \
             --image-id ${{ env.AMI_ID }} \
             --instance-type "${itype}" \
             --subnet-id ${{ secrets.EC2_SUBNET_ID }} \
@@ -266,8 +272,8 @@ jobs:
             --user-data file:///tmp/userdata.sh \
             --block-device-mappings "[{\"DeviceName\":\"${root_dev}\",\"Ebs\":{\"VolumeSize\":30,\"VolumeType\":\"gp3\",\"DeleteOnTermination\":true}}]" \
             --tag-specifications 'ResourceType=instance,Tags=[{Key=Project,Value=GitHub Actions Self-hosted Runners},{Key=Name,Value=compose-test-arm64-${{ github.run_id }}-${{ inputs.version_major }}}]' \
-            --query 'Instances[0].InstanceId' --output text 2>/tmp/run-instances.err) && break
-          instance_id=
+            --query 'Instances[].InstanceId' --output text 2>/tmp/run-instances.err) && break
+          instance_ids=
           if grep -q 'InsufficientInstanceCapacity' /tmp/run-instances.err; then
             echo "[Debug] No ${itype} capacity in this AZ, trying the next type..."
             continue
@@ -277,44 +283,56 @@ jobs:
           exit 1
         done
 
-        if [ -z "${instance_id}" ]; then
+        if [ -z "${instance_ids}" ]; then
           echo "[Error] Could not launch any instance type (no capacity in this AZ)." >&2
           exit 1
         fi
 
-        echo "[Debug] Launched instance: ${instance_id}"
-        echo "instance_id=${instance_id}" >> $GITHUB_ENV
+        instance_ids=$(echo ${instance_ids})
+        echo "[Debug] Launched instances: ${instance_ids}"
+        echo "instance_ids=${instance_ids}" >> $GITHUB_ENV
 
     - name: Wait for SSH and configure access
       run: |
-        aws ec2 wait instance-running --instance-ids ${{ env.instance_id }}
-        instance_ip=$(aws ec2 describe-instances --instance-ids ${{ env.instance_id }} \
-          --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-        echo "[Debug] Instance public IP: ${instance_ip}"
+        aws ec2 wait instance-running --instance-ids ${{ env.instance_ids }}
 
-        # SSH alias used by all the steps below ('ssh almalinux ...', 'scp ... almalinux:...')
-        cat > ~/.ssh/config <<EOF
-        Host ${{ env.ssh_host }}
+        # SSH aliases used by all the steps below ('ssh almalinux-0 ...',
+        # 'scp ... almalinux-0:...'), the instances in launch order
+        : > ~/.ssh/config
+        set -- ${{ env.instance_ids }}
+        for guest in ${guests}; do
+          instance_ip=$(aws ec2 describe-instances --instance-ids $1 \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "[Debug] ${guest}: instance $1, public IP ${instance_ip}"
+          shift
+          cat >> ~/.ssh/config <<EOF
+        Host ${guest}
           HostName ${instance_ip}
           User ${{ env.ssh_user }}
           IdentityFile ~/.ssh/id_ec2
           StrictHostKeyChecking no
           UserKnownHostsFile /dev/null
           ConnectTimeout 10
+          # Retry a connect that times out (~30s): a fresh instance has briefly
+          # stopped answering right after accepting the first connections
+          ConnectionAttempts 3
           # Ride out transient unresponsiveness under heavy load (e.g. the osbuild
           # image build) instead of dropping the session: ~150s before giving up.
           ServerAliveInterval 15
           ServerAliveCountMax 10
           TCPKeepAlive yes
         EOF
+        done
 
         # Wait for sshd to accept connections
-        for i in $(seq 1 60); do
-          ssh ${{ env.ssh_host }} true 2>/dev/null && break
-          echo "[Debug] Waiting for SSH (${i})"
-          sleep 10
-        done
-        ssh ${{ env.ssh_host }} 'echo "[Debug] Connected as $(whoami) on $(hostname)"'
+        ci/each-guest.sh '
+          for i in $(seq 1 60); do
+            ssh $guest true 2>/dev/null && break
+            echo "[Debug] Waiting for SSH (${i})"
+            sleep 10
+          done
+          ssh $guest '"'"'echo "[Debug] Connected as $(whoami) on $(hostname)"'"'"'
+        '
 
     - name: Create AlmaLinux pungi repository
       if: inputs.pungi_repository
@@ -420,54 +438,66 @@ jobs:
         echo "compose_state=${state}" >> "$GITHUB_ENV"
         echo "::notice title=compose-state::${state}"
 
-    - name: Push repositories to the instance
+    - name: Push repositories to the instances
       run: |
-        for repo in almalinux-pungi almalinux-pulp almalinux-testing-pulp almalinux-nvidia-pulp; do
-          f="${{ env.artifacts_dir }}/${repo}.repo"
-          if [ -e "$f" ]; then
-            echo "[Debug] Installing ${repo}.repo"
-            scp "$f" ${{ env.ssh_host }}:/tmp/${repo}.repo
-            ssh ${{ env.ssh_host }} "sudo cp -av /tmp/${repo}.repo /etc/yum.repos.d/${repo}.repo"
-          fi
-        done
+        ci/each-guest.sh '
+          set -e
+          for repo in almalinux-pungi almalinux-pulp almalinux-testing-pulp almalinux-nvidia-pulp; do
+            f="${{ env.artifacts_dir }}/${repo}.repo"
+            if [ -e "$f" ]; then
+              echo "[Debug] Installing ${repo}.repo"
+              scp "$f" $guest:/tmp/${repo}.repo
+              ssh $guest "sudo cp -av /tmp/${repo}.repo /etc/yum.repos.d/${repo}.repo"
+            fi
+          done
+        '
 
     - name: Update the system and reboot
       run: |
-        ssh ${{ env.ssh_host }} "sudo dnf -y clean all"
-        ssh ${{ env.ssh_host }} "sudo dnf -y upgrade"
+        ci/each-guest.sh '
+          set -e
+          ssh $guest "sudo dnf -y clean all"
+          ssh $guest "sudo dnf -y upgrade"
 
-        # Reboot to boot the newly installed kernel, then wait for SSH to come back
-        echo "[Debug] Rebooting to run the newly installed kernel"
-        ssh ${{ env.ssh_host }} "sudo reboot" || true
-        sleep 30
-        for i in $(seq 1 60); do
-          ssh ${{ env.ssh_host }} true 2>/dev/null && break
-          echo "[Debug] Waiting for SSH after reboot (${i})"
-          sleep 10
-        done
-        echo "[Debug] Running kernel:"
-        ssh ${{ env.ssh_host }} "uname -r"
+          # Reboot to boot the newly installed kernel, then wait for SSH to come
+          # back: answering with another boot ID, so that an instance that is
+          # still shutting down does not pass for a rebooted one
+          boot_id=$(ssh $guest cat /proc/sys/kernel/random/boot_id)
+          echo "[Debug] Rebooting to run the newly installed kernel"
+          ssh $guest "sudo reboot" || true
+          for i in $(seq 1 120); do
+            sleep 5
+            new_boot_id=$(ssh -o ConnectionAttempts=1 $guest cat /proc/sys/kernel/random/boot_id 2>/dev/null) || new_boot_id=
+            [ -n "${new_boot_id}" ] && [ "${new_boot_id}" != "${boot_id}" ] && break
+            echo "[Debug] Waiting for SSH after reboot (${i})"
+          done
+          echo "[Debug] Running kernel:"
+          ssh $guest "uname -r"
+        '
 
-    - name: Get compose-tests onto the instance
+    - name: Get compose-tests onto the instances
       run: |
         tar --exclude=./artifacts -C "${{ github.workspace }}" -czf /tmp/compose-tests.tgz .
-        scp /tmp/compose-tests.tgz ${{ env.ssh_host }}:/tmp/compose-tests.tgz
-        ssh ${{ env.ssh_host }} "sudo rm -rf /compose-tests && sudo mkdir -p /compose-tests && sudo tar -C /compose-tests -xzf /tmp/compose-tests.tgz"
+        ci/each-guest.sh '
+          set -e
+          scp /tmp/compose-tests.tgz $guest:/tmp/compose-tests.tgz
+          ssh $guest "sudo rm -rf /compose-tests && sudo mkdir -p /compose-tests && sudo tar -C /compose-tests -xzf /tmp/compose-tests.tgz"
+        '
 
     - name: Get system release
       run: |
-        echo "system_release=$(ssh ${{ env.ssh_host }} 'cat /etc/almalinux-release')" >> $GITHUB_ENV
+        echo "system_release=$(ssh almalinux-0 'cat /etc/almalinux-release')" >> $GITHUB_ENV
 
     - name: Add testing repository
       # With pulp the testing repo comes from pulp (see the pulp step above).
       # Kitten has no testing repository, so skip it there.
       if: inputs.testing_repository && !inputs.pulp_repository && inputs.version_major != '10-kitten'
       run: |
-        ssh ${{ env.ssh_host }} "sudo dnf install -y almalinux-release-testing"
+        ci/each-guest.sh 'ssh $guest "sudo dnf install -y almalinux-release-testing"'
 
     - name: Prepare test infrastructure
       run: |
-        ssh ${{ env.ssh_host }} 'sudo bash -s' <<'REMOTE'
+        cat > /tmp/ct-prepare.sh <<'REMOTE'
         enable_repo=${{ env.dnf_crb_repo }}
         dnf_opts="--enablerepo=${enable_repo,,}"
         if [ "${{ inputs.disable_default_repos }}" = "true" ]; then
@@ -503,6 +533,20 @@ jobs:
         export PATH=$PATH:/usr/local/bin
         echo "[Debug] tmt version: $(tmt --version)"
         REMOTE
+        ci/each-guest.sh 'ssh $guest "sudo bash -s" < /tmp/ct-prepare.sh'
+
+    - name: Split tests between the instances
+      run: |
+        # Enabled tests for this distro, split by duration (ci/test-durations/)
+        # into one tmt 'test --name' regex per instance, pushed to /tmp/ct-shard.regex
+        ssh almalinux-0 "sudo sh -c 'export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt -c distro=centos-stream-${{ env.release_version }} tests ls --enabled'" \
+          | grep '^/' > ./tests_enabled.txt
+        python3 ci/shard.py split --shards ${shards} --variant '${{ inputs.version_major }}-aarch64' < ./tests_enabled.txt > ./shards.txt
+        for guest in ${guests}; do
+          read -r regex <&3
+          echo "${regex}" > ./ct-shard.regex
+          scp ./ct-shard.regex ${guest}:/tmp/ct-shard.regex
+        done 3< ./shards.txt
 
     - name: Run tests
       id: run-tests
@@ -513,21 +557,35 @@ jobs:
         # 1=some failed) from an aborted one (e.g. 255 = the SSH session/instance
         # died mid-run, 2 = tmt error).
         set +e
-        ssh ${{ env.ssh_host }} 'sudo bash -s' <<'REMOTE'
+        cat > /tmp/ct-run.sh <<'REMOTE'
         export pungi_repository=${{ inputs.pungi_repository }}
         export pulp_repository=${{ inputs.pulp_repository }}
         export PATH=$PATH:/usr/local/bin
         cd /compose-tests
-        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local
+        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
         REMOTE
-        rc=$?
+        ci/each-guest.sh 'ssh $guest "sudo bash -s" < /tmp/ct-run.sh; echo $? > ./tmt_rc.$guest'
+        # The worst exit code of the instances: one outside 0/1 (255 = the SSH
+        # session/instance died, 2 = tmt error) wins over 1 (some failed) over
+        # 0 (all pass).
+        rc=0
+        for guest in ${guests}; do
+          guest_rc=$(cat ./tmt_rc.${guest} 2>/dev/null || echo 255)
+          echo "[Debug] ${guest} tmt/ssh exit code: ${guest_rc}"
+          case "${guest_rc}" in
+            0) ;;
+            1) [ "${rc}" = 0 ] && rc=1 ;;
+            *) rc=${guest_rc} ;;
+          esac
+        done
         echo "[Debug] tmt/ssh exit code: ${rc}"
         echo "tmt_rc=${rc}" >> "$GITHUB_OUTPUT"
         exit ${rc}
 
     - name: ${{ inputs.version_major }} tests results
       run: |
-        ssh ${{ env.ssh_host }} 'sudo bash -s' <<'REMOTE'
+        for guest in ${guests}; do
+        ssh ${guest} 'sudo bash -s' <<'REMOTE'
         #[Debug]
         find ${{ env.tmt_run_dir }}/plans/*/execute -name "results.yaml" -exec cat {} \;
 
@@ -538,29 +596,39 @@ jobs:
         done
         chmod -R a+r "$out"
         REMOTE
-        scp ${{ env.ssh_host }}:'/tmp/ct-collect/*.results.yaml' "${{ env.artifacts_dir }}/" 2>/dev/null || true
+        # Prefix the results with the instance: almalinux-0.legacy.results.yaml
+        rm -rf /tmp/ct-collect; mkdir -p /tmp/ct-collect
+        scp ${guest}:'/tmp/ct-collect/*.results.yaml' /tmp/ct-collect/ 2>/dev/null || true
+        for f in /tmp/ct-collect/*.results.yaml; do
+          [ -e "$f" ] && mv "$f" "${{ env.artifacts_dir }}/${guest}.$(basename "$f")"
+        done
+        done
 
     - name: ${{ inputs.version_major }} tests log
       run: |
-        #[Debug]
-        ssh ${{ env.ssh_host }} "sudo cat ${{ env.tmt_run_dir }}/log.txt"
+        for guest in ${guests}; do
+          #[Debug]
+          ssh ${guest} "sudo cat ${{ env.tmt_run_dir }}/log.txt"
 
-        ssh ${{ env.ssh_host }} "sudo cp -av ${{ env.tmt_run_dir }}/log.txt /tmp/log.txt && sudo chmod a+r /tmp/log.txt"
-        scp ${{ env.ssh_host }}:/tmp/log.txt "${{ env.artifacts_dir }}/log.txt"
+          ssh ${guest} "sudo cp -av ${{ env.tmt_run_dir }}/log.txt /tmp/log.txt && sudo chmod a+r /tmp/log.txt" || true
+          scp ${guest}:/tmp/log.txt "${{ env.artifacts_dir }}/${guest}.log.txt" || true
+        done
 
     - name: ${{ inputs.version_major }} tests output
       run: |
-        ssh ${{ env.ssh_host }} 'sudo bash -s' <<'REMOTE'
+        for guest in ${guests}; do
+        ssh ${guest} 'sudo bash -s' <<'REMOTE'
         cd ${{ env.tmt_run_dir }}/
         tar cf /tmp/output.tar $( find . -name output.txt ) || true
         chmod a+r /tmp/output.tar
         REMOTE
-        scp ${{ env.ssh_host }}:/tmp/output.tar "${{ env.artifacts_dir }}/output.tar" || true
+        scp ${guest}:/tmp/output.tar "${{ env.artifacts_dir }}/${guest}.output.tar" || true
+        done
 
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.version_major }}-aarch64 tests log
-        path: ${{ env.artifacts_dir }}/log.txt
+        path: ${{ env.artifacts_dir }}/*.log.txt
 
     - uses: actions/upload-artifact@v7
       with:
@@ -570,7 +638,7 @@ jobs:
     - uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.version_major }}-aarch64 tests output
-        path: ${{ env.artifacts_dir }}/output.tar
+        path: ${{ env.artifacts_dir }}/*.output.tar
 
     - name: Evaluate test results
       id: eval
@@ -584,16 +652,25 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
         fi
 
+        # The failed-tests list gets '<instance> <test>' lines so that a failed
+        # test is re-run on the instance it failed on. An instance with no
+        # results at all (every shard runs at least 0_common) means its run
+        # was aborted.
         shopt -s nullglob
-        total=0; passed=0; failed=0; errored=0
+        total=0; passed=0; failed=0; errored=0; empty_guest=false
         : > "${artifacts_dir}/tests_failed.txt"
-        for f in "${artifacts_dir}"/*.results.yaml; do
-          total=$((  total   + $(yq '. | length'                                  "$f" 2>/dev/null || echo 0) ))
-          passed=$(( passed  + $(yq '[.[] | select(.result == "pass")]  | length' "$f" 2>/dev/null || echo 0) ))
-          failed=$(( failed  + $(yq '[.[] | select(.result == "fail")]  | length' "$f" 2>/dev/null || echo 0) ))
-          errored=$((errored + $(yq '[.[] | select(.result == "error")] | length' "$f" 2>/dev/null || echo 0) ))
-          yq '.[] | select(.result == "fail" or .result == "error") | .name' "$f" 2>/dev/null \
-            >> "${artifacts_dir}/tests_failed.txt"
+        for guest in ${guests}; do
+          guest_total=0
+          for f in "${artifacts_dir}/${guest}".*.results.yaml; do
+            guest_total=$(( guest_total + $(yq '. | length'                         "$f" 2>/dev/null || echo 0) ))
+            passed=$(( passed  + $(yq '[.[] | select(.result == "pass")]  | length' "$f" 2>/dev/null || echo 0) ))
+            failed=$(( failed  + $(yq '[.[] | select(.result == "fail")]  | length' "$f" 2>/dev/null || echo 0) ))
+            errored=$((errored + $(yq '[.[] | select(.result == "error")] | length' "$f" 2>/dev/null || echo 0) ))
+            yq '.[] | select(.result == "fail" or .result == "error") | .name' "$f" 2>/dev/null \
+              | sed "s|^|${guest} |" >> "${artifacts_dir}/tests_failed.txt"
+          done
+          total=$(( total + guest_total ))
+          [ "${guest_total}" -eq 0 ] && empty_guest=true
         done
         failed_total=$(( failed + errored ))
 
@@ -608,6 +685,7 @@ jobs:
         incomplete=false
         case "${rc}" in 0|1) ;; *) incomplete=true ;; esac
         [ "${total}" -eq 0 ] && incomplete=true
+        [ "${empty_guest}" = true ] && incomplete=true
         echo "incomplete=${incomplete}" >> "$GITHUB_OUTPUT"
 
         echo "[Debug] total=${total} passed=${passed} failed=${failed_total} tmt_rc=${rc} incomplete=${incomplete}"
@@ -621,16 +699,19 @@ jobs:
         rerun_results=
         exit_code=0
 
-        # Read failed tests list
-        for test_failed in $(cat "${{ env.artifacts_dir }}/tests_failed.txt" | xargs); do
-          echo "[Debug] Re-run '${test_failed}'"
+        # Read failed tests list: '<instance> <test>' lines
+        while read -r guest test_failed; do
+          [ -n "${test_failed}" ] || continue
+          echo "[Debug] Re-run '${test_failed}' on ${guest}"
+          # Exact name as a tmt regex, '+' and '.' made literal (p_gcc-c++)
+          test_regex="^$(echo "${test_failed}" | sed 's/[+.]/[&]/g')\$"
 
           # Include failed test name into results summary
           test_result="${test_failed}"
 
-          # Re-run specific failed test
+          # Re-run specific failed test, on the instance it failed on
           if [ "${{ inputs.rerun_failed }}" = "true" ]; then
-            if ssh ${{ env.ssh_host }} "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name ${test_failed}'"; then
+            if ssh ${guest} "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name \"${test_regex}\"'" < /dev/null; then
               test_result="${test_failed} [re-run ✅]"
             else
               test_result="${test_failed} [re-run ❌]"
@@ -645,7 +726,7 @@ jobs:
           # Format test results in list format: 'item1', 'item2', ...
           [ "x${rerun_results}" = "x" ] && rerun_results="'${test_result}'" || rerun_results="${rerun_results}, '${test_result}'"
 
-        done
+        done < "${{ env.artifacts_dir }}/tests_failed.txt"
 
         # Export header and test results
         [ "x${rerun_results}" = "x" ] && summary_header="✅ All tests pass." || summary_header="❌ Failed tests:"
@@ -760,11 +841,11 @@ jobs:
     - name: Cleanup AWS resources
       if: always()
       run: |
-        # Terminate the instance
-        if [ -n "${{ env.instance_id }}" ]; then
-          echo "[Debug] Terminating ${{ env.instance_id }}"
-          aws ec2 terminate-instances --instance-ids ${{ env.instance_id }} || true
-          aws ec2 wait instance-terminated --instance-ids ${{ env.instance_id }} || true
+        # Terminate the instances
+        if [ -n "${{ env.instance_ids }}" ]; then
+          echo "[Debug] Terminating ${{ env.instance_ids }}"
+          aws ec2 terminate-instances --instance-ids ${{ env.instance_ids }} || true
+          aws ec2 wait instance-terminated --instance-ids ${{ env.instance_ids }} || true
         fi
 
     - name: Fail if the test run did not complete

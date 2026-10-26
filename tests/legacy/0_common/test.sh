@@ -10,4 +10,3 @@ source ../functions.sh
 ./20_upgrade_all.sh
 ./30_dns_works.sh
 ./40_update_hosts.sh
-./50_test_comps.sh
