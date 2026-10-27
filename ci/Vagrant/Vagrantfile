@@ -2,6 +2,9 @@ Vagrant.configure("2") do |config|
 
     config.env.enable
     config.vm.box = ENV['vm_box']
+    # The AlmaLinux Vagrant box catalog (HCP Vagrant shuts down on 2026-12-31);
+    # a VAGRANT_SERVER_URL in the environment still takes precedence
+    config.vm.box_server_url = "https://vagrant.almalinux.org"
 
     # One guest per test shard: almalinux-0 .. almalinux-N-1 (N from 'shards' in .env).
     shards = (ENV['shards'] || '1').to_i
