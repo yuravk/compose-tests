@@ -1,0 +1,739 @@
+name: almalinux-compose-test-ppc64le
+
+run-name: AlmaLinux ${{ inputs.version_major }} compose test (ppc64le)${{ inputs.pungi_repository && ' +pungi' || '' }}${{ inputs.pulp_repository && ' +pulp' || '' }}
+
+# There are no POWER runners: the tests run in AlmaLinux GenericCloud ppc64le
+# guests emulated with QEMU TCG (full-system emulation) on an x86_64 runner
+# (ci/tcg-guests.sh), split between the guests like on x86_64 and aarch64.
+# TCG needs QEMU 10.1 or newer, so Ubuntu 26.04: the 8.2.2 of Ubuntu 24.04
+# miscompiles POWER9 vector loads/stores and the EL9/EL10 Python crashes
+# (QEMU issue 1769). Emulation is many times slower than the other
+# architectures, so the job takes hours.
+
+on:
+  workflow_dispatch:
+      inputs:
+
+        version_major:
+          description: 'AlmaLinux major version'
+          required: true
+          default: '10'
+          type: choice
+          options:
+            - 10-kitten
+            - 10
+            - 9
+            - 8
+
+        pungi_repository:
+          description: 'Add pungi repositories'
+          type: boolean
+
+        pulp_repository:
+          description: 'Add pulp repositories'
+          type: boolean
+          default: true
+
+        testing_repository:
+          description: 'Add testing repository'
+          type: boolean
+          default: false
+
+        disable_default_repos:
+          description: 'Disable system default repositories'
+          type: boolean
+          default: false
+
+        rerun_failed:
+          description: 'Re-run failed tests'
+          type: boolean
+          default: true
+
+        notify_mattermost:
+          description: 'Send results notification to Mattermost'
+          type: boolean
+          default: true
+
+  # Allow this workflow to be called from the 'almalinux-compose-test' orchestrator.
+  # 'workflow_call' has no 'choice' input type, so 'version_major' is a string here.
+  workflow_call:
+    inputs:
+      version_major:
+        description: 'AlmaLinux major version'
+        required: true
+        type: string
+      pungi_repository:
+        description: 'Add pungi repositories'
+        type: boolean
+        default: false
+      pulp_repository:
+        description: 'Add pulp repositories'
+        type: boolean
+        default: true
+      testing_repository:
+        description: 'Add testing repository'
+        type: boolean
+        default: false
+      disable_default_repos:
+        description: 'Disable system default repositories'
+        type: boolean
+        default: false
+      rerun_failed:
+        description: 'Re-run failed tests'
+        type: boolean
+        default: true
+      notify_mattermost:
+        description: 'Send results notification to Mattermost'
+        type: boolean
+        default: true
+
+jobs:
+
+  compose-test:
+    name: AlmaLinux ${{ inputs.version_major }}
+    # TCG is CPU-bound and runs a host thread per guest CPU, so a big instance
+    # helps; KVM is of no use (no nested-virt). Not spot: an interruption
+    # would throw away hours of emulation. GitHub-hosted runners stop jobs
+    # after 6 hours.
+    runs-on: >-
+      ${{
+        github.repository_owner == 'AlmaLinux' &&
+          format('runs-on={0}/family=c8i.8xlarge/image=ubuntu26-full-x64/spot=false/volume=120gb', github.run_id)
+        ||
+        'ubuntu-26.04'
+      }}
+    timeout-minutes: ${{ github.repository_owner == 'AlmaLinux' && 720 || 360 }}
+
+    env:
+      # Number of guests the tests are split between, run in parallel
+      shards: 4
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Prepare stuff
+      run: |
+        # Environment variables
+        pungi_latest_result=latest_result_almalinux
+        pulp_root=${{ inputs.version_major }}
+        tmt_options=
+        rpm_gpg_key=/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux
+        release_version=${{ inputs.version_major }}
+        dnf_crb_repo='CRB'
+        dnf_extras_repo='extras'
+        image_url=https://repo.almalinux.org/almalinux/${{ inputs.version_major }}/cloud/ppc64le/images
+        image_name=AlmaLinux-${{ inputs.version_major }}-GenericCloud-latest.ppc64le.qcow2
+
+        case ${{ inputs.version_major }} in
+          8)
+            dnf_crb_repo='PowerTools'
+            ;;
+          9)
+            tmt_options='--feeling-safe'
+            rpm_gpg_key="${rpm_gpg_key}-9"
+            ;;
+          10)
+            tmt_options='--feeling-safe'
+            rpm_gpg_key="${rpm_gpg_key}-10"
+            ;;
+          10-kitten)
+            release_version=10
+            pulp_root=kitten-10
+            pungi_latest_result="${pungi_latest_result}-kitten"
+            tmt_options='--feeling-safe'
+            rpm_gpg_key="${rpm_gpg_key}-10"
+            dnf_extras_repo='extras-common'
+            image_url=https://kitten.repo.almalinux.org/10-kitten/cloud/ppc64le/images
+            image_name=AlmaLinux-Kitten-GenericCloud-10-latest.ppc64le.qcow2
+            ;;
+        esac
+        # Release major version
+        echo "release_version=${release_version}" >> $GITHUB_ENV
+
+        # Pulp repository root of the release
+        echo "pulp_root=${pulp_root}" >> $GITHUB_ENV
+
+        # Pungi repository latest results directory
+        echo "pungi_latest_result=${pungi_latest_result}" >> $GITHUB_ENV
+
+        # Name of repository to enable (PowerTools/CRB)
+        if [ "x${{ inputs.pulp_repository }}" = "xtrue" ]; then
+          # Lowercase the name for path in pulp's URL
+          pulp_crb_repo="${dnf_crb_repo,,}"
+        fi
+        echo "dnf_crb_repo=${dnf_crb_repo}" >> $GITHUB_ENV
+        echo "pulp_crb_repo=${pulp_crb_repo}" >> $GITHUB_ENV
+        echo "dnf_extras_repo=${dnf_extras_repo}" >> $GITHUB_ENV
+
+        # TMT extra options; these go right after 'tmt', before the
+        # subcommand -- tmt 1.78 dropped the step-level '--feeling-safe'.
+        echo "tmt_options=${tmt_options}" >> $GITHUB_ENV
+
+        # RPM_GPG_KEY file
+        echo "rpm_gpg_key=${rpm_gpg_key}" >> $GITHUB_ENV
+
+        # GenericCloud image the guests boot from
+        echo "image_url=${image_url}" >> $GITHUB_ENV
+        echo "image_name=${image_name}" >> $GITHUB_ENV
+
+        # TMT tests run directory (in the guests)
+        echo "tmt_run_dir=/var/tmp/tmt/run-001" >> $GITHUB_ENV
+
+        # SSH aliases of the guests, one per shard of the tests,
+        # configured in ~/.ssh/config by ci/tcg-guests.sh
+        echo "guests=$(seq -f 'almalinux-%g' -s ' ' 0 $(( shards - 1 )))" >> $GITHUB_ENV
+
+        # Guest disks, seeds and consoles
+        echo "guests_dir=${{ runner.temp }}/guests" >> $GITHUB_ENV
+
+        # Local directory on the runner to gather artifacts pulled from the guests
+        artifacts_dir="${{ github.workspace }}/artifacts"
+        mkdir -p "${artifacts_dir}"
+        echo "artifacts_dir=${artifacts_dir}" >> $GITHUB_ENV
+
+        # For nvidia drivers tests
+        case ${{ inputs.version_major }} in
+          8)
+            nvidia=false
+            ;;
+          *)
+            nvidia=true
+            ;;
+        esac
+        echo "nvidia=${nvidia}" >> $GITHUB_ENV
+
+    - name: Configure apt
+      run: |
+        # Prefer the regional EC2 mirror over archive.ubuntu.com (throttled/unreachable
+        # from the runners at times), and make apt fail fast with retries.
+        imds_token=$(curl -sf --max-time 5 -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' || true)
+        region=$(curl -sf --max-time 5 -H "X-aws-ec2-metadata-token: $imds_token" http://169.254.169.254/latest/meta-data/placement/region || true)
+        if [ -n "$region" ]; then
+          sudo sed -i "s|https\?://archive.ubuntu.com/ubuntu|http://${region}.ec2.archive.ubuntu.com/ubuntu|" /etc/apt/sources.list.d/ubuntu.sources
+        fi
+        printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-retries
+
+    - name: Install QEMU
+      run: |
+        sudo apt-get -y update
+        sudo apt-get -y install qemu-system-ppc qemu-utils cloud-image-utils
+        qemu_version=$(qemu-system-ppc64 --version | sed -nE 's/^QEMU emulator version ([0-9]+\.[0-9]+).*/\1/p')
+        echo "[Debug] qemu-system-ppc64 ${qemu_version}"
+        # Refuse an emulator with QEMU issue 1769 rather than let the run fail hours in
+        if [ "$(printf '%s\n' "${qemu_version}" 10.1 | sort -V | head -1)" != "10.1" ]; then
+          echo "[Error] QEMU ${qemu_version} is too old for ppc64le TCG (needs 10.1 or newer, see QEMU issue 1769); run this job on Ubuntu 26.04 or newer"
+          exit 1
+        fi
+        # Let QEMU's user-mode networking (SLIRP) forward the guests' ping
+        sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+
+    - name: Get the guest image
+      run: |
+        curl -fsSL --retry 5 --retry-delay 10 -o "${{ runner.temp }}/base.qcow2" "${image_url}/${image_name}"
+        # CHECKSUM has 'sha256sum' lines; check ours against the downloaded file
+        curl -fsSL --retry 5 --retry-delay 10 "${image_url}/CHECKSUM" \
+          | grep -E "  ${image_name}\$" | sed "s|  ${image_name}\$|  ${{ runner.temp }}/base.qcow2|" \
+          | sha256sum -c -
+        qemu-img info "${{ runner.temp }}/base.qcow2"
+
+    - name: Start the guests
+      run: |
+        ci/tcg-guests.sh ppc64le "${{ runner.temp }}/base.qcow2" "${guests_dir}"
+
+        # Wait for sshd to accept connections. SLIRP accepts the TCP connection
+        # before the guest's sshd is up, so try a real login. An emulated boot
+        # and cloud-init take minutes.
+        ci/each-guest.sh '
+          for i in $(seq 1 180); do
+            ssh $guest true 2>/dev/null && break
+            [ "${i}" -eq 180 ] && { echo "[Error] No SSH after 30 minutes"; exit 1; }
+            sleep 10
+          done
+          ssh $guest '"'"'echo "[Debug] Connected as $(whoami) on $(hostname): $(uname -m), $(nproc) CPUs"'"'"'
+        '
+
+    - name: Create AlmaLinux pungi repository
+      if: inputs.pungi_repository
+      run: |
+        cat <<'EOF'>"${{ env.artifacts_dir }}/almalinux-pungi.repo"
+        [almalinux-${{ env.release_version }}-appstream-pungi]
+        baseurl = https://ppc64le-pungi-${{ env.release_version }}.almalinux.dev/almalinux/${{ env.release_version }}/$arch/${{ env.pungi_latest_result }}/compose/AppStream/$arch/os/
+        enabled = 1
+        name = almalinux-${{ env.release_version }}-appstream-pungi
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.release_version }}-baseos-pungi]
+        baseurl = https://ppc64le-pungi-${{ env.release_version }}.almalinux.dev/almalinux/${{ env.release_version }}/$arch/${{ env.pungi_latest_result }}/compose/BaseOS/$arch/os/
+        enabled = 1
+        name = almalinux-${{ env.release_version }}-baseos-pungi
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.release_version }}-${{ env.dnf_crb_repo }}-pungi]
+        baseurl = https://ppc64le-pungi-${{ env.release_version }}.almalinux.dev/almalinux/${{ env.release_version }}/$arch/${{ env.pungi_latest_result }}/compose/${{ env.dnf_crb_repo }}/$arch/os/
+        enabled = 1
+        name = almalinux-${{ env.release_version }}-${{ env.dnf_crb_repo }}-pungi
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.release_version }}-${{ env.dnf_extras_repo }}-pungi]
+        baseurl = https://ppc64le-pungi-${{ env.release_version }}.almalinux.dev/almalinux/${{ env.release_version }}/$arch/${{ env.pungi_latest_result }}/compose/${{ env.dnf_extras_repo }}/$arch/os/
+        enabled = 1
+        name = almalinux-${{ env.release_version }}-${{ env.dnf_extras_repo }}-pungi
+        gpgkey=file://${{ env.rpm_gpg_key }}
+        EOF
+
+    - name: Create AlmaLinux pulp repository
+      if: inputs.pulp_repository
+      run: |
+        cat <<'EOF'>"${{ env.artifacts_dir }}/almalinux-pulp.repo"
+        [almalinux-${{ env.pulp_root }}-appstream-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ env.pulp_root }}-appstream-$arch/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-appstream-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.pulp_root }}-baseos-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ env.pulp_root }}-baseos-$arch/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-baseos-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.pulp_root }}-${{ env.pulp_crb_repo }}-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ env.pulp_root }}-${{ env.pulp_crb_repo }}-$arch/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-${{ env.pulp_crb_repo }}-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }}
+
+        [almalinux-${{ env.pulp_root }}-${{ env.dnf_extras_repo }}-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ env.pulp_root }}-${{ env.dnf_extras_repo }}-$arch/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-${{ env.dnf_extras_repo }}-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }}
+        EOF
+
+    - name: Create AlmaLinux testing pulp repository
+      # Kitten has no testing repository, so skip it there
+      if: inputs.pulp_repository && inputs.testing_repository && inputs.version_major != '10-kitten'
+      run: |
+        cat <<'EOF'>"${{ env.artifacts_dir }}/almalinux-testing-pulp.repo"
+        [almalinux-${{ env.pulp_root }}-testing-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/prod/almalinux-${{ env.pulp_root }}-testing-$arch/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-testing-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }}
+        EOF
+
+    - name: Create AlmaLinux nvidia pulp repository
+      if: env.nvidia == 'true' && inputs.pulp_repository
+      run: |
+        # Repositories of the 'almalinux-nvidia' product
+        # https://build.almalinux.org/product/777
+        cat <<'EOF'>"${{ env.artifacts_dir }}/almalinux-nvidia-pulp.repo"
+        [almalinux-${{ env.pulp_root }}-nvidia-pulp]
+        baseurl = https://build.almalinux.org/pulp/content/copr/anfimovdm-almalinux-nvidia-almalinux-${{ env.pulp_root }}-$arch-dr/
+        enabled = 1
+        name = almalinux-${{ env.pulp_root }}-nvidia-pulp
+        gpgkey=file://${{ env.rpm_gpg_key }},file:///etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA-CUDA-${{ env.release_version }}
+        EOF
+
+    # No 'Publish tested repository state': ci/compose_state.py gates the
+    # x86_64 and aarch64 publishing only
+
+    - name: Push repositories to the guests
+      run: |
+        ci/each-guest.sh '
+          set -e
+          for repo in almalinux-pungi almalinux-pulp almalinux-testing-pulp almalinux-nvidia-pulp; do
+            f="${{ env.artifacts_dir }}/${repo}.repo"
+            if [ -e "$f" ]; then
+              echo "[Debug] Installing ${repo}.repo"
+              scp "$f" $guest:/tmp/${repo}.repo
+              ssh $guest "sudo cp -av /tmp/${repo}.repo /etc/yum.repos.d/${repo}.repo"
+            fi
+          done
+        '
+
+    - name: Update the system and reboot
+      run: |
+        ci/each-guest.sh '
+          set -e
+          ssh $guest "sudo dnf -y clean all"
+          ssh $guest "sudo dnf -y upgrade"
+
+          # Reboot to boot the newly installed kernel, then wait for SSH to come
+          # back: answering with another boot ID, so that a guest that is
+          # still shutting down does not pass for a rebooted one
+          boot_id=$(ssh $guest cat /proc/sys/kernel/random/boot_id)
+          echo "[Debug] Rebooting to run the newly installed kernel"
+          ssh $guest "sudo reboot" || true
+          for i in $(seq 1 180); do
+            sleep 10
+            new_boot_id=$(ssh -o ConnectionAttempts=1 $guest cat /proc/sys/kernel/random/boot_id 2>/dev/null) || new_boot_id=
+            [ -n "${new_boot_id}" ] && [ "${new_boot_id}" != "${boot_id}" ] && break
+            [ "${i}" -eq 180 ] && { echo "[Error] No SSH 30 minutes after the reboot"; exit 1; }
+          done
+          echo "[Debug] Running kernel:"
+          ssh $guest "uname -r"
+        '
+
+    - name: Get compose-tests onto the guests
+      run: |
+        tar --exclude=./artifacts -C "${{ github.workspace }}" -czf /tmp/compose-tests.tgz .
+        ci/each-guest.sh '
+          set -e
+          scp /tmp/compose-tests.tgz $guest:/tmp/compose-tests.tgz
+          ssh $guest "sudo rm -rf /compose-tests && sudo mkdir -p /compose-tests && sudo tar -C /compose-tests -xzf /tmp/compose-tests.tgz"
+        '
+
+    - name: Get system release
+      run: |
+        echo "system_release=$(ssh almalinux-0 'cat /etc/almalinux-release')" >> $GITHUB_ENV
+
+    - name: Add testing repository
+      # With pulp the testing repo comes from pulp (see the pulp step above).
+      # Kitten has no testing repository, so skip it there.
+      if: inputs.testing_repository && !inputs.pulp_repository && inputs.version_major != '10-kitten'
+      run: |
+        ci/each-guest.sh 'ssh $guest "sudo dnf install -y almalinux-release-testing"'
+
+    - name: Prepare test infrastructure
+      run: |
+        cat > /tmp/ct-prepare.sh <<'REMOTE'
+        enable_repo=${{ env.dnf_crb_repo }}
+        dnf_opts="--enablerepo=${enable_repo,,}"
+        if [ "${{ inputs.disable_default_repos }}" = "true" ]; then
+          # Disable all enabled system repositories
+          for enabled_repo in $(dnf repolist --enabled | awk '/repo id/ {A=1; next} A {print $1}' | grep -v -E 'pungi|pulp'); do
+            echo "[Debug] Disable '${enabled_repo}' repository"
+            dnf config-manager --set-disabled ${enabled_repo}
+          done
+          dnf_opts=
+        fi
+        case ${{ inputs.version_major }} in
+          10-kitten)
+            dnf install -y ${dnf_opts} epel-release almalinux-kitten-release-devel
+            [ "${{ inputs.disable_default_repos }}" = "false" ] && \
+              dnf_opts="${dnf_opts} --enablerepo=devel"
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
+            ;;
+          10)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
+            ;;
+          9)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} tmt initscripts-service
+            ;;
+          *)
+            dnf install -y ${dnf_opts} epel-release
+            dnf install -y ${dnf_opts} tmt tmt-report-html
+            ;;
+        esac
+        export PATH=$PATH:/usr/local/bin
+        echo "[Debug] tmt version: $(tmt --version)"
+        REMOTE
+        ci/each-guest.sh 'ssh $guest "sudo bash -s" < /tmp/ct-prepare.sh'
+
+    - name: Split tests between the guests
+      run: |
+        # Enabled tests for this distro, split by duration (ci/test-durations/)
+        # into one tmt 'test --name' regex per guest, pushed to /tmp/ct-shard.regex
+        ssh almalinux-0 "sudo sh -c 'export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt -c distro=centos-stream-${{ env.release_version }} tests ls --enabled'" \
+          | grep '^/' > ./tests_enabled.txt
+        python3 ci/shard.py split --shards ${shards} --variant '${{ inputs.version_major }}-ppc64le' < ./tests_enabled.txt > ./shards.txt
+        for guest in ${guests}; do
+          read -r regex <&3
+          echo "${regex}" > ./ct-shard.regex
+          scp ./ct-shard.regex ${guest}:/tmp/ct-shard.regex
+        done 3< ./shards.txt
+
+    - name: Run tests
+      id: run-tests
+      continue-on-error: true
+      run: |
+        # continue-on-error lets us always collect logs and notify; capture the
+        # real exit code so a later step can tell a clean run (tmt 0=all pass,
+        # 1=some failed) from an aborted one (e.g. 255 = the SSH session/guest
+        # died mid-run, 2 = tmt error).
+        set +e
+        cat > /tmp/ct-run.sh <<'REMOTE'
+        export pungi_repository=${{ inputs.pungi_repository }}
+        export pulp_repository=${{ inputs.pulp_repository }}
+        export PATH=$PATH:/usr/local/bin
+        cd /compose-tests
+        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
+        REMOTE
+        ci/each-guest.sh 'ssh $guest "sudo bash -s" < /tmp/ct-run.sh; echo $? > ./tmt_rc.$guest'
+        # The worst exit code of the guests: one outside 0/1 (255 = the SSH
+        # session/guest died, 2 = tmt error) wins over 1 (some failed) over
+        # 0 (all pass).
+        rc=0
+        for guest in ${guests}; do
+          guest_rc=$(cat ./tmt_rc.${guest} 2>/dev/null || echo 255)
+          echo "[Debug] ${guest} tmt/ssh exit code: ${guest_rc}"
+          case "${guest_rc}" in
+            0) ;;
+            1) [ "${rc}" = 0 ] && rc=1 ;;
+            *) rc=${guest_rc} ;;
+          esac
+        done
+        echo "[Debug] tmt/ssh exit code: ${rc}"
+        echo "tmt_rc=${rc}" >> "$GITHUB_OUTPUT"
+        exit ${rc}
+
+    - name: ${{ inputs.version_major }} tests results
+      run: |
+        for guest in ${guests}; do
+        ssh ${guest} 'sudo bash -s' <<'REMOTE'
+        #[Debug]
+        find ${{ env.tmt_run_dir }}/plans/*/execute -name "results.yaml" -exec cat {} \;
+
+        out=/tmp/ct-collect
+        rm -rf "$out"; mkdir -p "$out"
+        for f in $(find ${{ env.tmt_run_dir }}/plans/*/execute -name "results.yaml"); do
+          cp -av "$f" "$out/$(basename "$(dirname "$(dirname "$f")")").results.yaml"
+        done
+        chmod -R a+r "$out"
+        REMOTE
+        # Prefix the results with the guest: almalinux-0.legacy.results.yaml
+        rm -rf /tmp/ct-collect; mkdir -p /tmp/ct-collect
+        scp ${guest}:'/tmp/ct-collect/*.results.yaml' /tmp/ct-collect/ 2>/dev/null || true
+        for f in /tmp/ct-collect/*.results.yaml; do
+          [ -e "$f" ] && mv "$f" "${{ env.artifacts_dir }}/${guest}.$(basename "$f")"
+        done
+        done
+
+    - name: ${{ inputs.version_major }} tests log
+      run: |
+        for guest in ${guests}; do
+          #[Debug]
+          ssh ${guest} "sudo cat ${{ env.tmt_run_dir }}/log.txt"
+
+          ssh ${guest} "sudo cp -av ${{ env.tmt_run_dir }}/log.txt /tmp/log.txt && sudo chmod a+r /tmp/log.txt" || true
+          scp ${guest}:/tmp/log.txt "${{ env.artifacts_dir }}/${guest}.log.txt" || true
+        done
+
+    - name: ${{ inputs.version_major }} tests output
+      run: |
+        for guest in ${guests}; do
+        ssh ${guest} 'sudo bash -s' <<'REMOTE'
+        cd ${{ env.tmt_run_dir }}/
+        tar cf /tmp/output.tar $( find . -name output.txt ) || true
+        chmod a+r /tmp/output.tar
+        REMOTE
+        scp ${guest}:/tmp/output.tar "${{ env.artifacts_dir }}/${guest}.output.tar" || true
+        done
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.version_major }}-ppc64le tests log
+        path: ${{ env.artifacts_dir }}/*.log.txt
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.version_major }}-ppc64le tests results
+        path: ${{ env.artifacts_dir }}/*.results.yaml
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.version_major }}-ppc64le tests output
+        path: ${{ env.artifacts_dir }}/*.output.tar
+
+    - uses: actions/upload-artifact@v7
+      # The guests' serial consoles (firmware, boot, kernel messages), the only
+      # trace of a guest that does not boot or hangs
+      if: always()
+      with:
+        name: ${{ inputs.version_major }}-ppc64le guests console
+        path: ${{ env.guests_dir }}/*.console.log
+        if-no-files-found: ignore
+
+    - name: Evaluate test results
+      id: eval
+      if: always()
+      run: |
+        # Tally the collected results.yaml, build the failed-tests list, and
+        # decide whether the run actually completed.
+        if ! command -v yq >/dev/null 2>&1; then
+          sudo curl -fsSL -o /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+        fi
+
+        # The failed-tests list gets '<guest> <test>' lines so that a failed
+        # test is re-run on the guest it failed on. A guest with no results
+        # at all (every shard runs at least 0_common) means its run was
+        # aborted.
+        shopt -s nullglob
+        total=0; passed=0; failed=0; errored=0; empty_guest=false
+        : > "${artifacts_dir}/tests_failed.txt"
+        for guest in ${guests}; do
+          guest_total=0
+          for f in "${artifacts_dir}/${guest}".*.results.yaml; do
+            guest_total=$(( guest_total + $(yq '. | length'                         "$f" 2>/dev/null || echo 0) ))
+            passed=$(( passed  + $(yq '[.[] | select(.result == "pass")]  | length' "$f" 2>/dev/null || echo 0) ))
+            failed=$(( failed  + $(yq '[.[] | select(.result == "fail")]  | length' "$f" 2>/dev/null || echo 0) ))
+            errored=$((errored + $(yq '[.[] | select(.result == "error")] | length' "$f" 2>/dev/null || echo 0) ))
+            yq '.[] | select(.result == "fail" or .result == "error") | .name' "$f" 2>/dev/null \
+              | sed "s|^|${guest} |" >> "${artifacts_dir}/tests_failed.txt"
+          done
+          total=$(( total + guest_total ))
+          [ "${guest_total}" -eq 0 ] && empty_guest=true
+        done
+        failed_total=$(( failed + errored ))
+
+        echo "total=${total}"         >> "$GITHUB_OUTPUT"
+        echo "passed=${passed}"       >> "$GITHUB_OUTPUT"
+        echo "failed=${failed_total}" >> "$GITHUB_OUTPUT"
+
+        # Completeness: a clean tmt run exits 0 (all pass) or 1 (some failed).
+        # Anything else (255 = SSH/guest died mid-run, 2 = tmt error, ...) or
+        # zero recorded results means the run was aborted before finishing.
+        rc='${{ steps.run-tests.outputs.tmt_rc }}'
+        incomplete=false
+        case "${rc}" in 0|1) ;; *) incomplete=true ;; esac
+        [ "${total}" -eq 0 ] && incomplete=true
+        [ "${empty_guest}" = true ] && incomplete=true
+        echo "incomplete=${incomplete}" >> "$GITHUB_OUTPUT"
+
+        echo "[Debug] total=${total} passed=${passed} failed=${failed_total} tmt_rc=${rc} incomplete=${incomplete}"
+
+    - name: Re-run failed tests, prepare tests summary
+      # Only when the run completed and recorded failures; an aborted run is
+      # handled by the completeness gate at the end of the job.
+      if: ${{ always() && steps.eval.outputs.incomplete == 'false' && steps.eval.outputs.failed != '0' }}
+      run: |
+        # Tests results and the step exit code
+        rerun_results=
+        exit_code=0
+
+        # Read failed tests list: '<guest> <test>' lines
+        while read -r guest test_failed; do
+          [ -n "${test_failed}" ] || continue
+          echo "[Debug] Re-run '${test_failed}' on ${guest}"
+          # Exact name as a tmt regex, '+' and '.' made literal (p_gcc-c++)
+          test_regex="^$(echo "${test_failed}" | sed 's/[+.]/[&]/g')\$"
+
+          # Include failed test name into results summary
+          test_result="${test_failed}"
+
+          # Re-run specific failed test, on the guest it failed on
+          if [ "${{ inputs.rerun_failed }}" = "true" ]; then
+            if ssh ${guest} "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name \"${test_regex}\"'" < /dev/null; then
+              test_result="${test_failed} [re-run ✅]"
+            else
+              test_result="${test_failed} [re-run ❌]"
+              exit_code=1
+            fi
+          else
+            echo "[Debug]"
+            echo "If without re-run, fail this step as the '${test_failed}' test previously failed."
+            exit_code=1
+          fi
+
+          # Format test results in list format: 'item1', 'item2', ...
+          [ "x${rerun_results}" = "x" ] && rerun_results="'${test_result}'" || rerun_results="${rerun_results}, '${test_result}'"
+
+        done < "${{ env.artifacts_dir }}/tests_failed.txt"
+
+        # Export header and test results
+        [ "x${rerun_results}" = "x" ] && summary_header="✅ All tests pass." || summary_header="❌ Failed tests:"
+        echo "rerun_results=${rerun_results}" >> $GITHUB_ENV
+        echo "summary_header=${summary_header}" >> $GITHUB_ENV
+
+        exit $exit_code
+
+    - name: Print tests summary
+      id: summary
+      # Always run so the run-page summary and the Mattermost text are produced
+      # for both passing and failing runs.
+      if: always()
+      uses: actions/github-script@v9
+      with:
+        result-encoding: string
+        script: |
+          const repos = [
+            'pulp - ${{ inputs.pulp_repository && '➕' || '➖' }}',
+            'pungi - ${{ inputs.pungi_repository && '➕' || '➖' }}',
+            'testing - ${{ inputs.testing_repository && '➕' || '➖' }}',
+            'default repos - ${{ inputs.disable_default_repos && '➖' || '➕' }}',
+          ];
+          // Re-run annotated failures (set only when the re-run step ran).
+          const rerun = [${{ env.rerun_results }}];
+
+          const passed     = parseInt('${{ steps.eval.outputs.passed }}' || '0', 10);
+          const failed     = parseInt('${{ steps.eval.outputs.failed }}' || '0', 10);
+          const total      = parseInt('${{ steps.eval.outputs.total  }}' || '0', 10);
+          const incomplete = '${{ steps.eval.outputs.incomplete }}' === 'true';
+          const rc         = '${{ steps.run-tests.outputs.tmt_rc }}';
+
+          // The counts above are the FIRST run. Reconcile them with the re-run
+          // outcomes: entries are annotated '… [re-run ✅]' (recovered) /
+          // '… [re-run ❌]' (still failing); unmarked means re-run was disabled.
+          const reran        = rerun.some(r => r.includes('[re-run'));
+          const recovered    = rerun.filter(r => r.includes('✅')).length;
+          const stillFailing = rerun.length - recovered;
+
+          let header;
+          if (incomplete) header = `⚠️ Test run did NOT complete — only ${total} results recorded (tmt/ssh exit ${rc}).`;
+          else if (stillFailing > 0) header = `❌ ${stillFailing} of ${total} tests failed.`;
+          else if (recovered > 0) header = `✅ All ${total} tests passed (${recovered} recovered on re-run).`;
+          else header = `✅ All ${total} tests passed.`;
+
+          const counts = `Passed: ${passed} · Failed: ${failed} · Total: ${total}`;
+          const rerunLine = reran ? `Re-run — recovered: ${recovered} · still failing: ${stillFailing}` : '';
+
+          // Run-page summary
+          let summary = core.summary
+              .addHeading('${{ env.system_release }}', '4')
+              .addHeading('Used repositories:', '4')
+              .addList(repos, true)
+              .addHeading(header, '4')
+              .addRaw(counts).addBreak();
+          if (rerunLine) summary = summary.addRaw(rerunLine).addBreak();
+          summary.addList(rerun, true).write();
+
+          // Failure reason as the 'compose-fail' annotation of this job
+          if (incomplete || stillFailing > 0) {
+            core.error(`${header} ${rerun.join(', ')}`.trim().slice(0, 3800), { title: 'compose-fail' });
+          }
+
+          // Markdown text for the Mattermost notification
+          const runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+          const text = [
+            '#### AlmaLinux ${{ inputs.version_major }} ppc64le — compose tests',
+            '**${{ env.system_release }}**',
+            '',
+            header,
+            counts,
+            ...(rerunLine ? [rerunLine] : []),
+            '',
+            '**Used repositories:**',
+            ...repos.map(r => '- ' + r),
+            ...(rerun.length ? ['', '**Re-run failed tests:**', ...rerun.map(r => '- ' + r)] : []),
+            '',
+            '[Workflow run](' + runUrl + ')',
+          ].join('\n');
+          core.setOutput('text', text);
+
+    - name: Send notification to Mattermost
+      uses: mattermost/action-mattermost-notify@v2.1.0
+      # Notify on both pass and fail; never fail the job on a notification error
+      if: ${{ always() && inputs.notify_mattermost }}
+      continue-on-error: true
+      with:
+        MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
+        MATTERMOST_CHANNEL: ${{ vars.MATTERMOST_CHANNEL }}
+        MATTERMOST_USERNAME: ${{ github.triggering_actor }}
+        TEXT: |
+          ${{ steps.summary.outputs.text }}
+
+    - name: Fail if the test run did not complete
+      # Runs last (after notification) so an aborted/incomplete run — e.g. a
+      # test that kills the SSH session, leaving an empty results.yaml — is
+      # reported as a failure instead of a false green.
+      if: ${{ always() && steps.eval.outputs.incomplete == 'true' }}
+      run: |
+        echo "::error::Test run did not complete: tmt/ssh exit '${{ steps.run-tests.outputs.tmt_rc }}', ${{ steps.eval.outputs.total }} results recorded."
+        exit 1
