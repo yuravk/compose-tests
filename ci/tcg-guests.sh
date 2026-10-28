@@ -5,6 +5,7 @@
 # their serial consoles go to <dir>/<guest>.console.log. Each one is reachable
 # as 'ssh <guest>' (and scp), as the 'almalinux' user with passwordless sudo,
 # through ~/.ssh/config. The guests take a while to boot: wait for SSH.
+# <dir>/<guest>.start boots a guest that was shut down again, the same way.
 #
 #   guests='almalinux-0 almalinux-1' ci/tcg-guests.sh ppc64le base.qcow2 /var/tmp/guests
 
@@ -23,6 +24,15 @@ case ${arch} in
     # SLOF and the kernel use the spapr-vty serial console, which is logged.
     machine=(-machine pseries,cap-cfpc=broken,cap-sbbc=broken,cap-ibs=broken,cap-ccf-assist=off
              -cpu POWER9 -vga none)
+    bus=pci
+    ;;
+  s390x)
+    qemu=qemu-system-s390x
+    # 'max' is the newest CPU TCG emulates (AlmaLinux 10 needs z15). The
+    # serial console is the SCLP console, which is logged.
+    machine=(-machine "s390-ccw-virtio" -cpu max)
+    # Channel I/O instead of PCI
+    bus=ccw
     ;;
   *)
     echo "[Error] Unsupported architecture: ${arch}" >&2
@@ -44,7 +54,8 @@ echo "[Debug] ${count} ${arch} guests, ${cpus} CPUs and ${ram} MiB RAM each"
 base=$(realpath "${base}")
 mkdir -p "${dir}" ~/.ssh
 chmod 700 ~/.ssh
-key=$(realpath "${dir}")/id_ed25519
+dir=$(realpath "${dir}")
+key=${dir}/id_ed25519
 [ -f "${key}" ] || ssh-keygen -t ed25519 -N '' -q -C tcg-guests -f "${key}"
 
 i=0
@@ -69,19 +80,24 @@ EOF
   cloud-localds "${dir}/${guest}.seed.iso" "${dir}/${guest}.user-data" "${dir}/${guest}.meta-data"
 
   # The guests are throwaway: cache=unsafe skips the host flushes, which are
-  # slow, of every guest fsync
-  "${qemu}" -name "${guest}" "${machine[@]}" \
-    -accel tcg,thread=multi -smp "${cpus}" -m "${ram}" \
-    -drive "file=${dir}/${guest}.qcow2,if=none,id=disk,format=qcow2,cache=unsafe,discard=unmap" \
-    -device virtio-blk-pci,drive=disk,bootindex=0 \
-    -drive "file=${dir}/${guest}.seed.iso,if=none,id=seed,format=raw,readonly=on" \
-    -device virtio-blk-pci,drive=seed \
-    -netdev "user,id=net,hostfwd=tcp:127.0.0.1:${port}-:22" \
-    -device virtio-net-pci,netdev=net \
-    -display none \
-    -serial "file:${dir}/${guest}.console.log" \
-    -pidfile "${dir}/${guest}.pid" \
-    -daemonize
+  # slow, of every guest fsync. The console log is appended to, so that it
+  # keeps the earlier boots of a guest started again with <guest>.start.
+  qemu_args=("${qemu}" -name "${guest}" "${machine[@]}"
+    -accel tcg,thread=multi -smp "${cpus}" -m "${ram}"
+    -drive "file=${dir}/${guest}.qcow2,if=none,id=disk,format=qcow2,cache=unsafe,discard=unmap"
+    -device "virtio-blk-${bus},drive=disk,bootindex=0"
+    -drive "file=${dir}/${guest}.seed.iso,if=none,id=seed,format=raw,readonly=on"
+    -device "virtio-blk-${bus},drive=seed"
+    -netdev "user,id=net,hostfwd=tcp:127.0.0.1:${port}-:22"
+    -device "virtio-net-${bus},netdev=net"
+    -display none
+    -chardev "file,id=console,path=${dir}/${guest}.console.log,append=on"
+    -serial chardev:console
+    -pidfile "${dir}/${guest}.pid"
+    -daemonize)
+  { echo '#!/bin/bash'; printf 'exec'; printf ' %q' "${qemu_args[@]}"; echo; } > "${dir}/${guest}.start"
+  chmod +x "${dir}/${guest}.start"
+  "${dir}/${guest}.start"
   echo "[Debug] ${guest}: PID $(cat "${dir}/${guest}.pid"), SSH on 127.0.0.1:${port}"
 
   cat >> ~/.ssh/config <<EOF
