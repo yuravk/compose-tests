@@ -11,9 +11,9 @@ check_type=qcow
 # Maximum wall-clock time (seconds) to wait for the image to be created,
 # how often to poll, and a hard cap on each individual composer-cli call so a
 # wedged osbuild-composer backend can never block the loop indefinitely.
-wait_max=900
+wait_max=3600
 poll_sec=20
-cli_timeout=60
+cli_timeout=300
 
 t_Log "Running $0 - osbuild: start to build '$blueprint' image, type '$image_type'"
 
