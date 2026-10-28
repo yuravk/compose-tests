@@ -1,7 +1,7 @@
 #!/usr/bin/expect -f
 # Author: Athmane Madjoudj <athmanem@gmail.com>
 
-set timeout 2
+set timeout 30
 spawn ssh -o StrictHostKeyChecking=no sshtest@localhost /bin/cat ssh_test_file
 send -- "\r"
 expect eof

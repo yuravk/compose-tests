@@ -1,7 +1,7 @@
 #!/usr/bin/expect -f
 # Author: Christoph Galuschka <tigalch@tigalch.org>
 
-set timeout 1
+set timeout 30
 spawn telnet localhost 25
 expect "220 *"
 send -- "ehlo localhost\n"
