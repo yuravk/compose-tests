@@ -107,6 +107,9 @@ jobs:
     env:
       # Number of guests the tests are split between, run in parallel
       shards: 4
+      # Emulation is 5 to 30 times slower than the hardware the tests' time
+      # limits ('duration') are meant for: the factor they are scaled by
+      duration_scale: 8
 
     steps:
     - uses: actions/checkout@v7
@@ -377,6 +380,15 @@ jobs:
 
     - name: Get compose-tests onto the guests
       run: |
+        # Scale the tests' time limits in the copy the guests get, as plain
+        # values: the tmt 1.26 of AlmaLinux 8 has neither policies nor
+        # duration multiplication. Tests without one get tmt's default, 5m.
+        grep -rlE '^duration:' --include=main.fmf tests | xargs perl -pi -e '
+          my %unit = (s => 1, m => 60, h => 3600, d => 86400);
+          s/^duration:\s*(\d+)([smhd])\s*$/"duration: " . $1 * $unit{$2} * $ENV{duration_scale} . "s\n"/e'
+        echo "duration: $(( 5 * 60 * duration_scale ))s" > tests/main.fmf
+        echo "[Debug] Test time limits:"; grep -rE '^duration:' --include=main.fmf tests
+
         tar --exclude=./artifacts -C "${{ github.workspace }}" -czf /tmp/compose-tests.tgz .
         ci/each-guest.sh '
           set -e
