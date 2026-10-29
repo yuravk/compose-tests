@@ -392,12 +392,12 @@ jobs:
             dnf install -y ${dnf_opts} epel-release almalinux-kitten-release-devel
             [ "${{ inputs.disable_default_repos }}" = "false" ] && \
               dnf_opts="${dnf_opts} --enablerepo=devel"
-            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service rsync
             export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
             ;;
           10)
             dnf install -y ${dnf_opts} epel-release
-            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service
+            dnf install -y ${dnf_opts} python3-pip beakerlib initscripts-service rsync
             export PATH=$PATH:/usr/local/bin; pip install flexparser==0.3.1 tmt
             ;;
           9)
