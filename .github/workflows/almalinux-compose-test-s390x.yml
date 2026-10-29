@@ -331,9 +331,10 @@ jobs:
           set -e
           sudo podman exec $guest dnf -y clean all
           sudo podman exec $guest dnf -y upgrade
-          # The image has packages an installed system does not (curl instead
-          # of curl-minimal) and lacks some it has (hostname)
-          sudo podman exec $guest sh -c "dnf -y -q list --available curl-minimal >/dev/null 2>&1 && rpm -q curl >/dev/null && dnf -y swap curl curl-minimal || true"
+          # The image has packages an installed system does not (curl-minimal,
+          # which conflicts with the curl the tests install) and lacks some it
+          # has (hostname)
+          sudo podman exec $guest sh -c "! rpm -q curl-minimal >/dev/null || dnf -y swap curl-minimal curl"
           sudo podman exec $guest dnf -y install hostname
         '
 
