@@ -476,7 +476,7 @@ jobs:
         export pulp_repository=${{ inputs.pulp_repository }}
         export PATH=$PATH:/usr/local/bin
         cd /compose-tests
-        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
+        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all --environment emulated_guest=true provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
         REMOTE
         ci/each-guest.sh 'ssh $guest "sudo bash -s" < /tmp/ct-run.sh; echo $? > ./tmt_rc.$guest'
         # The worst exit code of the guests: one outside 0/1 (255 = the SSH
@@ -634,7 +634,7 @@ jobs:
 
           # Re-run specific failed test, on the guest it failed on
           if [ "${{ inputs.rerun_failed }}" = "true" ]; then
-            if ssh ${guest} "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all provision --how=local test --name \"${test_regex}\"'" < /dev/null; then
+            if ssh ${guest} "sudo sh -c 'export pungi_repository=${{ inputs.pungi_repository }}; export pulp_repository=${{ inputs.pulp_repository }}; export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all --environment emulated_guest=true provision --how=local test --name \"${test_regex}\"'" < /dev/null; then
               test_result="${test_failed} [re-run ✅]"
             else
               test_result="${test_failed} [re-run ❌]"

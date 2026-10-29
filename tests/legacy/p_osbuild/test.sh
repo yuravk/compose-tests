@@ -2,6 +2,13 @@
 
 source ../functions.sh
 
+# The CI runs the ppc64le and s390x tests in emulated (QEMU TCG) guests, where
+# building an image takes more than an hour.
+if [ "x${emulated_guest}" = "xtrue" ]; then
+    t_Log "Running $0 - osbuild: emulated guest -> SKIP"
+    exit 0
+fi
+
 # osbuild-composer ships x86_64 (v3-baseline) repo definitions only — there is
 # no x86_64_v2 arch block in the repositories JSON, and the build chroot pulls
 # v3 glibc which aborts on a v2 host. Detect the v2 variant once via the
