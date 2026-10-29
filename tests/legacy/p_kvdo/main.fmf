@@ -1,3 +1,4 @@
 summary: imported p_kvdo test set
 description: p_kvdo imported as-is
 test: ./test.sh
+duration: 10m
