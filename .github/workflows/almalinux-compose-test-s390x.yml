@@ -213,6 +213,11 @@ jobs:
         # Its binfmt_misc handlers let the kernel run s390x binaries
         sudo apt-get -y update
         sudo apt-get -y install qemu-user-binfmt
+        # Registered without the C (credentials) flag, setuid programs (passwd,
+        # newgrp, su, ...) would run without their privileges: register again with it
+        handler=$(grep -h "^:qemu-s390x:" /usr/lib/binfmt.d/qemu-s390x.conf)
+        echo -1 | sudo tee /proc/sys/fs/binfmt_misc/qemu-s390x > /dev/null
+        echo "${handler%:*}:OCPF" | sudo tee /proc/sys/fs/binfmt_misc/register > /dev/null
         cat /proc/sys/fs/binfmt_misc/qemu-s390x
         echo "[Debug] $(qemu-s390x --version | head -1), $(podman --version)"
 
@@ -326,6 +331,10 @@ jobs:
           set -e
           sudo podman exec $guest dnf -y clean all
           sudo podman exec $guest dnf -y upgrade
+          # The image has packages an installed system does not (curl instead
+          # of curl-minimal) and lacks some it has (hostname)
+          sudo podman exec $guest sh -c "dnf -y -q list --available curl-minimal >/dev/null 2>&1 && rpm -q curl >/dev/null && dnf -y swap curl curl-minimal || true"
+          sudo podman exec $guest dnf -y install hostname
         '
 
     - name: Get compose-tests onto the containers
@@ -401,7 +410,7 @@ jobs:
       run: |
         # Enabled tests for this distro, split by duration (ci/test-durations/)
         # into one tmt 'test --name' regex per container, pushed to /tmp/ct-shard.regex
-        sudo podman exec almalinux-0 sh -c 'export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -c distro=centos-stream-${{ env.release_version }} tests ls --enabled' \
+        sudo podman exec almalinux-0 sh -c 'export PATH=$PATH:/usr/local/bin; cd /compose-tests; tmt -c distro=centos-stream-${{ env.release_version }} -c container=yes tests ls --enabled' \
           | grep '^/' > ./tests_enabled.txt
         python3 ci/shard.py split --shards ${shards} --variant '${{ inputs.version_major }}-s390x' < ./tests_enabled.txt > ./shards.txt
         for guest in ${guests}; do
@@ -422,7 +431,7 @@ jobs:
         cat > /tmp/ct-run.sh <<'REMOTE'
         export PATH=$PATH:/usr/local/bin
         cd /compose-tests
-        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all --environment pungi_repository=${{ inputs.pungi_repository }} --environment pulp_repository=${{ inputs.pulp_repository }} --environment CONTAINERTEST=1 --environment emulated_guest=true provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
+        tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} -c container=yes run --all --environment pungi_repository=${{ inputs.pungi_repository }} --environment pulp_repository=${{ inputs.pulp_repository }} --environment CONTAINERTEST=1 --environment emulated_guest=true provision --how=local test --name "$(cat /tmp/ct-shard.regex)"
         REMOTE
         ci/each-guest.sh 'sudo podman exec -i $guest bash -s < /tmp/ct-run.sh; echo $? > ./tmt_rc.$guest'
         # The worst exit code of the containers: one outside 0/1 (2 = tmt error,
@@ -586,7 +595,7 @@ jobs:
 
           # Re-run specific failed test, in the container it failed in
           if [ "${{ inputs.rerun_failed }}" = "true" ]; then
-            if sudo podman exec ${guest} sh -c "export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} run --all --environment pungi_repository=${{ inputs.pungi_repository }} --environment pulp_repository=${{ inputs.pulp_repository }} --environment CONTAINERTEST=1 --environment emulated_guest=true provision --how=local test --name \"${test_regex}\"" < /dev/null; then
+            if sudo podman exec ${guest} sh -c "export PATH=\$PATH:/usr/local/bin; cd /compose-tests; tmt ${{ env.tmt_options }} -vvv -c distro=centos-stream-${{ env.release_version }} -c container=yes run --all --environment pungi_repository=${{ inputs.pungi_repository }} --environment pulp_repository=${{ inputs.pulp_repository }} --environment CONTAINERTEST=1 --environment emulated_guest=true provision --how=local test --name \"${test_regex}\"" < /dev/null; then
               test_result="${test_failed} [re-run ✅]"
             else
               test_result="${test_failed} [re-run ❌]"
