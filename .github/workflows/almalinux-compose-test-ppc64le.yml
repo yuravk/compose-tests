@@ -1,0 +1,62 @@
+name: almalinux-compose-test-ppc64le
+
+run-name: AlmaLinux ${{ inputs.version_major }} compose test (ppc64le)${{ inputs.pungi_repository && ' +pungi' || '' }}${{ inputs.pulp_repository && ' +pulp' || '' }}
+
+# Placeholder: GitHub dispatches a workflow only if a file with its path is on
+# the default branch. The implementation (QEMU TCG emulated ppc64le guests) is
+# on the ci/tcg-ppc64le-s390x branch: run the workflow from there.
+
+on:
+  workflow_dispatch:
+      inputs:
+
+        version_major:
+          description: 'AlmaLinux major version'
+          required: true
+          default: '10'
+          type: choice
+          options:
+            - 10-kitten
+            - 10
+            - 9
+            - 8
+
+        pungi_repository:
+          description: 'Add pungi repositories'
+          type: boolean
+
+        pulp_repository:
+          description: 'Add pulp repositories'
+          type: boolean
+          default: true
+
+        testing_repository:
+          description: 'Add testing repository'
+          type: boolean
+          default: false
+
+        disable_default_repos:
+          description: 'Disable system default repositories'
+          type: boolean
+          default: false
+
+        rerun_failed:
+          description: 'Re-run failed tests'
+          type: boolean
+          default: true
+
+        notify_mattermost:
+          description: 'Send results notification to Mattermost'
+          type: boolean
+          default: true
+
+jobs:
+
+  compose-test:
+    name: AlmaLinux ${{ inputs.version_major }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Not implemented on this branch
+      run: |
+        echo "::error::No ppc64le compose tests on '${{ github.ref_name }}': run this workflow from the ci/tcg-ppc64le-s390x branch."
+        exit 1
