@@ -347,37 +347,14 @@ jobs:
           done
         '
 
-    - name: Update the system and reboot
+    - name: Update the system and restart
       run: |
         ci/each-guest.sh '
           set -e
           ssh $guest "sudo dnf -y clean all"
           ssh $guest "sudo dnf -y upgrade"
-
-          # Boot the newly installed kernel, then wait for SSH to come back:
-          # answering with another boot ID, so that a guest that is still
-          # shutting down does not pass for a rebooted one. Not with a reboot
-          # inside the guest: under TCG the kernel ends it in a disabled wait,
-          # which QEMU takes for a panic, powering the guest off. So power it
-          # off, and once QEMU has exited start the guest again.
-          boot_id=$(ssh $guest cat /proc/sys/kernel/random/boot_id)
-          echo "[Debug] Restarting to run the newly installed kernel"
-          qemu_pid=$(cat "${guests_dir}/${guest}.pid")
-          ssh $guest "sudo poweroff" || true
-          for i in $(seq 1 120); do
-            kill -0 ${qemu_pid} 2>/dev/null || break
-            [ "${i}" -eq 120 ] && { echo "[Error] Still running 20 minutes after the poweroff"; exit 1; }
-            sleep 10
-          done
-          "${guests_dir}/${guest}.start"
-          for i in $(seq 1 180); do
-            sleep 10
-            new_boot_id=$(ssh -o ConnectionAttempts=1 $guest cat /proc/sys/kernel/random/boot_id 2>/dev/null) || new_boot_id=
-            [ -n "${new_boot_id}" ] && [ "${new_boot_id}" != "${boot_id}" ] && break
-            [ "${i}" -eq 180 ] && { echo "[Error] No SSH 30 minutes after the reboot"; exit 1; }
-          done
-          echo "[Debug] Running kernel:"
-          ssh $guest "uname -r"
+          # Boot the newly installed kernel
+          ci/tcg-guest-restart.sh $guest "${guests_dir}"
         '
 
     - name: Get compose-tests onto the guests

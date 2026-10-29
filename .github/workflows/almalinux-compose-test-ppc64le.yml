@@ -355,27 +355,14 @@ jobs:
           done
         '
 
-    - name: Update the system and reboot
+    - name: Update the system and restart
       run: |
         ci/each-guest.sh '
           set -e
           ssh $guest "sudo dnf -y clean all"
           ssh $guest "sudo dnf -y upgrade"
-
-          # Reboot to boot the newly installed kernel, then wait for SSH to come
-          # back: answering with another boot ID, so that a guest that is
-          # still shutting down does not pass for a rebooted one
-          boot_id=$(ssh $guest cat /proc/sys/kernel/random/boot_id)
-          echo "[Debug] Rebooting to run the newly installed kernel"
-          ssh $guest "sudo reboot" || true
-          for i in $(seq 1 180); do
-            sleep 10
-            new_boot_id=$(ssh -o ConnectionAttempts=1 $guest cat /proc/sys/kernel/random/boot_id 2>/dev/null) || new_boot_id=
-            [ -n "${new_boot_id}" ] && [ "${new_boot_id}" != "${boot_id}" ] && break
-            [ "${i}" -eq 180 ] && { echo "[Error] No SSH 30 minutes after the reboot"; exit 1; }
-          done
-          echo "[Debug] Running kernel:"
-          ssh $guest "uname -r"
+          # Boot the newly installed kernel
+          ci/tcg-guest-restart.sh $guest "${guests_dir}"
         '
 
     - name: Get compose-tests onto the guests
