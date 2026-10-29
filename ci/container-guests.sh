@@ -40,9 +40,24 @@ for guest in ${guests}; do
 
   # Under emulation the units with credentials (ImportCredential=) fail at
   # boot with 243/CREDENTIALS: QEMU does not translate the mount calls systemd
-  # sets them up with. Run the two the system needs ourselves.
-  podman exec "${guest}" sh -c 'systemd-sysusers; systemd-tmpfiles --create --remove --boot --exclude-prefix=/dev; systemctl reset-failed' || true
+  # sets them up with. Run systemd-sysusers and systemd-tmpfiles ourselves,
+  # give journald (it imports credentials since AlmaLinux 10) a copy of its
+  # unit without them, and start again what failed at boot, D-Bus with it.
+  echo "[Debug] ${guest}: failed at boot: $(podman exec "${guest}" systemctl --failed --no-legend --plain | awk '{print $1}' | xargs)"
+  podman exec "${guest}" sh -c '
+    systemd-sysusers
+    systemd-tmpfiles --create --remove --boot --exclude-prefix=/dev
+    unit=/usr/lib/systemd/system/systemd-journald.service
+    if grep -q "^ImportCredential=" "${unit}"; then
+      sed "/^ImportCredential=/d" "${unit}" > /etc/systemd/system/systemd-journald.service
+      systemctl daemon-reload
+    fi
+    failed=$(systemctl --failed --no-legend --plain | awk "{print \$1}" |
+      grep -vE "^systemd-(sysusers|tmpfiles-setup|tmpfiles-setup-dev|tmpfiles-setup-dev-early|firstboot)\.service$")
+    systemctl reset-failed
+    [ -z "${failed}" ] || systemctl restart ${failed}
+  ' || true
 
   echo "[Debug] ${guest}: $(podman exec "${guest}" sh -c 'echo "$(uname -m), $(cat /etc/almalinux-release), systemd $(systemctl is-system-running)"')"
-  podman exec "${guest}" systemctl --failed --no-legend --plain
+  echo "[Debug] ${guest}: still failed: $(podman exec "${guest}" systemctl --failed --no-legend --plain | awk '{print $1}' | xargs)"
 done
