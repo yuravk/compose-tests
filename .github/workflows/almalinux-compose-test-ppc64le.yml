@@ -406,7 +406,7 @@ jobs:
             ;;
           *)
             dnf install -y ${dnf_opts} epel-release
-            dnf install -y ${dnf_opts} tmt tmt-report-html
+            dnf install -y ${dnf_opts} tmt tmt-report-html initscripts
             ;;
         esac
         export PATH=$PATH:/usr/local/bin
